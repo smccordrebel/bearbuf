@@ -19,6 +19,7 @@ from enum import Enum
 import logging
 import queue
 import threading
+from datetime import datetime
 
 from multisense_lab import (
     MultiSenseError,
@@ -26,11 +27,24 @@ from multisense_lab import (
     IMPEDANCE_SAMPLE_Q_MAX
 )
 
-__version__ = "1.0"
+__version__ = "0.1"
 
 # ============================================================================
 # Logging Configuration
 # ============================================================================
+# Logging Configuration
+dt = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+log_file_name = f"{dt}_bearbuf_log.txt"
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    handlers=[
+                logging.FileHandler(log_file_name),
+                logging.StreamHandler()
+             ]
+)
+logger = logging.getLogger(__name__)
 
 class QueueHandler(logging.Handler):
     """Custom logging handler that puts log records into a queue."""
@@ -167,7 +181,7 @@ class BearBufUI:
         # Logging queue
         self.log_queue: queue.Queue = queue.Queue()
         self.setup_logging()
-        self.log = logging.getLogger("multisense_lab")
+        self.log = logger
         
         # Data storage for streaming data
         self.flow_imped_q = deque(maxlen=IMPEDANCE_SAMPLE_Q_MAX)
@@ -247,7 +261,7 @@ class BearBufUI:
         self.control_frame = ttk.Frame(self.notebook)
         
         self.notebook.add(self.connection_frame, text="Bluetooth Connection")
-        self.notebook.add(self.control_frame, text="Sensor Control")
+        self.notebook.add(self.control_frame, text="Bear Buf Calculator")
         
         # Setup connection tab
         self.setup_connection_tab()
@@ -380,16 +394,16 @@ class BearBufUI:
         left_canvas.bind("<Enter>", _bind_left_mousewheel)
         left_canvas.bind("<Leave>", _unbind_left_mousewheel)
 
-        # Sensor streaming frame
-        streaming_frame = ttk.LabelFrame(left_container, text="Sensor Streaming", padding=10)
-        streaming_frame.pack(fill=tk.X, pady=5)
+        # read historical data
+        calculator_frame = ttk.LabelFrame(left_container, text="Calculator", padding=10)
+        calculator_frame.pack(fill=tk.X, pady=5)
 
-        stream_button_frame = ttk.Frame(streaming_frame)
+        stream_button_frame = ttk.Frame(calculator_frame)
         stream_button_frame.pack(fill=tk.X, pady=2)
 
         self.stream_start_button = ttk.Button(
             stream_button_frame,
-            text="Start Streaming",
+            text="Read Historical Data",
             command=self.on_start_streaming,
             state=tk.DISABLED
         )
@@ -397,73 +411,25 @@ class BearBufUI:
 
         self.stream_stop_button = ttk.Button(
             stream_button_frame,
-            text="Stop Streaming",
+            text="Run Calculator",
             command=self.on_stop_streaming,
             state=tk.DISABLED
         )
         self.stream_stop_button.pack(side=tk.LEFT, padx=2, fill=tk.X, expand=True)
 
         # Impedance settle count frame
-        settle_frame = ttk.LabelFrame(streaming_frame, padding=5)
+        settle_frame = ttk.LabelFrame(calculator_frame, padding=5)
         settle_frame.pack(fill=tk.X, pady=5)
 
-        ttk.Label(settle_frame, text="BIOZ Settle Count").pack(side=tk.LEFT, padx=(0, 5))
-        self.bioz_settle_count = tk.IntVar(value=4)
-        self.settle_spinbox = ttk.Spinbox(
+        ttk.Label(settle_frame, text="Starting Portfolio").pack(side=tk.LEFT, padx=(0, 5))
+        self.bioz_settle_count = tk.IntVar(value=2000000)
+        self.settle_spinbox = ttk.Entry(
             settle_frame,
-            from_=0,
-            to=32,
-            increment=2,
             textvariable=self.bioz_settle_count,
-            width=5,
-            justify=tk.CENTER
+            width=10,
+            justify=tk.RIGHT
         )
         self.settle_spinbox.pack(side=tk.LEFT, padx=5)
-
-        # Sensor streaming log output checkbox
-        self.log_output_var = tk.BooleanVar(value=True)
-        self.log_output_check = ttk.Checkbutton(
-            streaming_frame,
-            text="Log Output",
-            variable=self.log_output_var
-        )
-        self.log_output_check.pack(side=tk.LEFT, fill=tk.X, pady=2)
-        self.ui_var_disable(self.log_output_check)
-
-        # Auto streaming output checkbox
-        self.auto_stream_var = tk.BooleanVar(value=True)
-        self.auto_stream_check = ttk.Checkbutton(
-            streaming_frame,
-            text="Auto Stream",
-            variable=self.auto_stream_var
-        )
-        self.auto_stream_check.pack(side=tk.LEFT, fill=tk.X, padx=5, pady=2)
-        self.ui_var_disable(self.auto_stream_check)
-
-        # Live plot options
-        self.live_plot_label = tk.Label(streaming_frame, text="Live Plot")
-        self.live_plot_label.pack(side=tk.LEFT, fill=tk.X, padx=5, pady=2)
-
-        live_plot_options = ["Flow", "Pressure", "Patency"]
-        self.live_plot_var = tk.StringVar()
-        self.live_plot_cb = ttk.Combobox(
-            streaming_frame,
-            textvariable=self.live_plot_var, 
-            state="readonly", 
-            values=live_plot_options, 
-            width=8)
-        self.live_plot_cb.pack(side=tk.LEFT, fill=tk.X, padx=5, pady=2)
-        self.live_plot_cb.current(0)  # default to Flow
-        self.ui_var_disable(self.live_plot_cb)
-
-        # Auto Heater Frame
-        self.setup_auto_heater_frame(left_container)
-        
-        # Heater Schedule Frame
-        self.setup_heater_sched_frame(left_container)
-
-        # Bubble Generator Schedule Frame
-        self.setup_bubble_gen_sched_frame(left_container)
 
         # Right panel: Scrollable Graphs
         right_panel = ttk.Frame(main_container)
@@ -1092,6 +1058,7 @@ class BearBufUI:
     def on_scan_devices(self):
         """Scan for available Bluetooth devices."""
 
+        self.log.info("Puppy is cute")
         if (self.connect_state_get() != ConnectState.DISCONNECTED):
             return
 
