@@ -77,7 +77,6 @@ class BearBufUI:
 
     def setup_control_tab(self):
         """Set up the control and monitoring tab."""
-        logger.info("hello puppy")
         # Create main container with vertical scrolling
         main_container = ttk.Frame(self.control_frame)
         main_container.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
@@ -117,42 +116,61 @@ class BearBufUI:
         left_canvas.bind("<Enter>", _bind_left_mousewheel)
         left_canvas.bind("<Leave>", _unbind_left_mousewheel)
 
-        # read historical data
+        # calculator frame for left panel
         calculator_frame = ttk.LabelFrame(left_container, text="Calculator", padding=10)
         calculator_frame.pack(fill=tk.X, pady=5)
 
-        stream_button_frame = ttk.Frame(calculator_frame)
-        stream_button_frame.pack(fill=tk.X, pady=2)
+        # read historical data
+        historical_data_frame = ttk.Frame(calculator_frame)
+        historical_data_frame.pack(fill=tk.X, pady=2)
 
-        self.stream_start_button = ttk.Button(
-            stream_button_frame,
+        self.historical_data_button = ttk.Button(
+            historical_data_frame,
             text="Read Historical Data",
-            command=self.on_start_streaming,
+            command=self.on_historical_data,
             state=tk.NORMAL
         )
-        self.stream_start_button.pack(side=tk.LEFT, padx=2, fill=tk.X, expand=True)
+        self.historical_data_button.pack(side=tk.LEFT, padx=2, fill=tk.X, expand=True)
 
-        self.stream_stop_button = ttk.Button(
-            stream_button_frame,
-            text="Run Calculator",
-            command=self.on_stop_streaming,
-            state=tk.NORMAL
-        )
-        self.stream_stop_button.pack(side=tk.LEFT, padx=2, fill=tk.X, expand=True)
+        # Starting portfolio value entry
+        portfolio_frame = ttk.LabelFrame(calculator_frame, padding=5)
+        portfolio_frame.pack(fill=tk.X, pady=5)
 
-        # Impedance settle count frame
-        settle_frame = ttk.LabelFrame(calculator_frame, padding=5)
-        settle_frame.pack(fill=tk.X, pady=5)
-
-        ttk.Label(settle_frame, text="Starting Portfolio $").pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(portfolio_frame, text="Starting Portfolio $").pack(side=tk.LEFT, padx=(0, 5))
         self.portfolio_start_val = tk.IntVar(value=2000000)
         self.portfolio_start_entry = ttk.Entry(
-            settle_frame,
+            portfolio_frame,
             textvariable=self.portfolio_start_val,
             width=10,
             justify=tk.RIGHT
         )
         self.portfolio_start_entry.pack(side=tk.LEFT, padx=5)
+
+        # Weekly expenses entry
+        weekly_expenses_frame = ttk.LabelFrame(calculator_frame, padding=5)
+        weekly_expenses_frame.pack(fill=tk.X, pady=5)
+
+        ttk.Label(weekly_expenses_frame, text="Weekly Expenses $").pack(side=tk.LEFT, padx=(0, 5))
+        self.weekly_expenses_val = tk.IntVar(value=8000)
+        self.weekly_expenses_entry = ttk.Entry(
+            weekly_expenses_frame,
+            textvariable=self.weekly_expenses_val,
+            width=10,
+            justify=tk.RIGHT
+        )
+        self.weekly_expenses_entry.pack(side=tk.LEFT, padx=5)
+
+        # run calculator button
+        run_calculator_frame = ttk.Frame(calculator_frame)
+        run_calculator_frame.pack(fill=tk.X, pady=2)
+
+        self.run_calculator_button = ttk.Button(
+            run_calculator_frame,
+            text="Run Calculator",
+            command=self.on_run_calculator,
+            state=tk.NORMAL
+        )
+        self.run_calculator_button.pack(side=tk.LEFT, padx=2, fill=tk.X, expand=True)
 
         # Right panel: Scrollable Graphs
         right_panel = ttk.Frame(main_container)
@@ -198,7 +216,7 @@ class BearBufUI:
         graph_frame_1 = ttk.LabelFrame(graph_container, text="Portfolio Over Time", padding=5)
         graph_frame_1.pack(fill=tk.BOTH, expand=True, pady=5)
 
-        # Create matplotlib figure for flow impedance
+        # Create matplotlib figure for portfolio value
         self.figure_flow = Figure(figsize=(8, 4), dpi=100)
         self.ax_flow = self.figure_flow.add_subplot(111)
         self.ax_flow.set_xlabel(PLOT_X_LABEL)
@@ -248,11 +266,11 @@ class BearBufUI:
         """Cleanup on a disconnection event"""
         pass
 
-    def on_start_streaming(self):
+    def on_historical_data(self):
         """Start sensor streaming."""
         pass
     
-    def on_stop_streaming(self):
+    def on_run_calculator(self):
         """Stop sensor streaming."""
         pass
 
