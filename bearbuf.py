@@ -160,6 +160,34 @@ class BearBufUI:
         )
         self.weekly_expenses_entry.pack(side=tk.LEFT, padx=5)
 
+        # inflation rate entry
+        inflation_rate_frame = ttk.LabelFrame(calculator_frame, padding=5)
+        inflation_rate_frame.pack(fill=tk.X, pady=5)
+
+        ttk.Label(inflation_rate_frame, text="Inflation Rate %").pack(side=tk.LEFT, padx=(0, 5))
+        self.inflation_rate_val = tk.IntVar(value=3)
+        self.inflation_rate_entry = ttk.Entry(
+            inflation_rate_frame,
+            textvariable=self.inflation_rate_val,
+            width=10,
+            justify=tk.RIGHT
+        )
+        self.inflation_rate_entry.pack(side=tk.LEFT, padx=5)
+
+        # Interest rate entry
+        interest_rate_frame = ttk.LabelFrame(calculator_frame, padding=5)
+        interest_rate_frame.pack(fill=tk.X, pady=5)
+
+        ttk.Label(interest_rate_frame, text="Interest Rate %").pack(side=tk.LEFT, padx=(0, 5))
+        self.interest_rate_val = tk.IntVar(value=4)
+        self.interest_rate_entry = ttk.Entry(
+            interest_rate_frame,
+            textvariable=self.interest_rate_val,
+            width=10,
+            justify=tk.RIGHT
+        )
+        self.interest_rate_entry.pack(side=tk.LEFT, padx=5)
+
         # run calculator button
         run_calculator_frame = ttk.Frame(calculator_frame)
         run_calculator_frame.pack(fill=tk.X, pady=2)
