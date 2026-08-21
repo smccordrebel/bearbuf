@@ -7,7 +7,6 @@ Look at the historical data for VTSAX and analyze bear starts and how
 to utilize a portfolio of stocks/bonds/cash.
 """
 
-
 import tkinter as tk
 from tkinter import ttk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -151,7 +150,7 @@ class BearBufUI:
         weekly_expenses_frame.pack(fill=tk.X, pady=5)
 
         ttk.Label(weekly_expenses_frame, text="Weekly Expenses $").pack(side=tk.LEFT, padx=(0, 5))
-        self.weekly_expenses_val = tk.IntVar(value=8000)
+        self.weekly_expenses_val = tk.IntVar(value=2000)
         self.weekly_expenses_entry = ttk.Entry(
             weekly_expenses_frame,
             textvariable=self.weekly_expenses_val,
