@@ -7,18 +7,12 @@ Look at the historical data for VTSAX and analyze bear starts and how
 to utilize a portfolio of stocks/bonds/cash.
 """
 
-import asyncio
-import concurrent.futures
+
 import tkinter as tk
-from tkinter import ttk, scrolledtext, messagebox
+from tkinter import ttk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
-from collections import deque
-from typing import Optional
-from enum import Enum
 import logging
-import queue
-import threading
 from datetime import datetime
 
 __version__ = "0.1"
@@ -28,7 +22,7 @@ dt = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 log_file_name = f"{dt}_bearbuf_log.txt"
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format='%(asctime)s %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S',
     handlers=[
                 logging.FileHandler(log_file_name),
@@ -83,6 +77,7 @@ class BearBufUI:
 
     def setup_control_tab(self):
         """Set up the control and monitoring tab."""
+        logger.info("hello puppy")
         # Create main container with vertical scrolling
         main_container = ttk.Frame(self.control_frame)
         main_container.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
@@ -149,15 +144,15 @@ class BearBufUI:
         settle_frame = ttk.LabelFrame(calculator_frame, padding=5)
         settle_frame.pack(fill=tk.X, pady=5)
 
-        ttk.Label(settle_frame, text="Starting Portfolio").pack(side=tk.LEFT, padx=(0, 5))
-        self.bioz_settle_count = tk.IntVar(value=2000000)
-        self.settle_spinbox = ttk.Entry(
+        ttk.Label(settle_frame, text="Starting Portfolio $").pack(side=tk.LEFT, padx=(0, 5))
+        self.portfolio_start_val = tk.IntVar(value=2000000)
+        self.portfolio_start_entry = ttk.Entry(
             settle_frame,
-            textvariable=self.bioz_settle_count,
+            textvariable=self.portfolio_start_val,
             width=10,
             justify=tk.RIGHT
         )
-        self.settle_spinbox.pack(side=tk.LEFT, padx=5)
+        self.portfolio_start_entry.pack(side=tk.LEFT, padx=5)
 
         # Right panel: Scrollable Graphs
         right_panel = ttk.Frame(main_container)
