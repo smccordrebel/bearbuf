@@ -8,11 +8,12 @@ to utilize a portfolio of stocks/bonds/cash.
 """
 
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, scrolledtext, messagebox
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 import logging
 from datetime import datetime
+import csv
 
 __version__ = "0.1"
 
@@ -39,6 +40,9 @@ PLOT_X_LABEL = "Time (weeks)"
 PLOT_Y_LABEL = "Portfolio Value"
 PLOT_TITLE_FLOW = "Portfolio"
 PLOT_TITLE_FLOW_DRIFT = "Portfolio Over Time"
+
+# historical data to be read
+HISTORICAL_FILENAME = 'VTSAX_history.csv'
 
 # ============================================================================
 # Bear Buf UI Application
@@ -294,9 +298,30 @@ class BearBufUI:
         pass
 
     def on_historical_data(self):
-        """Start sensor streaming."""
-        pass
-    
+        """Read the historical data"""
+        date = []
+        value = []
+        try:
+            with open(HISTORICAL_FILENAME, newline="", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                for row in reader:
+                    if len(row) >= 2:
+                        date.append(row[0])
+                        value.append(row[1])
+        except:
+            str = f"Error when reading historical data from {HISTORICAL_FILENAME}. Verify the file exists and try again."
+            logger.error(str)
+            messagebox.showerror("Error", str)
+
+        try:
+            for index in range(len(date)): 
+                str = f"{date[index]}, {value[index]}"
+                logger.info(str)
+        except:
+            str = f"Unexpected error when reading historical data from {HISTORICAL_FILENAME}"
+            logger.error(str)
+            messagebox.showerror("Error", str)
+        
     def on_run_calculator(self):
         """Stop sensor streaming."""
         pass
