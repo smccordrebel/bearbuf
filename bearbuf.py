@@ -309,7 +309,8 @@ class BearBufUI:
                         date.append(row[0])
                         value.append(row[1])
         except:
-            str = f"Error when reading historical data from {HISTORICAL_FILENAME}. Verify the file exists and try again."
+            str = f"Error when reading historical data from {HISTORICAL_FILENAME}. "
+            str += "Verify the file exists and try again."
             logger.error(str)
             messagebox.showerror("Error", str)
 
@@ -318,12 +319,12 @@ class BearBufUI:
                 str = f"{date[index]}, {value[index]}"
                 logger.info(str)
         except:
-            str = f"Unexpected error when reading historical data from {HISTORICAL_FILENAME}"
+            str = f"Unexpected error when processing historical data from {HISTORICAL_FILENAME}"
             logger.error(str)
             messagebox.showerror("Error", str)
         
     def on_run_calculator(self):
-        """Stop sensor streaming."""
+        """Run the calculator and display results."""
         pass
 
 
@@ -332,7 +333,7 @@ class BearBufUI:
         self.disconnect_cleanup()
 
 def main():
-    """Main entry point for the UI application."""
+    """Main entry point for the  application."""
     root = tk.Tk()
     ui = BearBufUI(root)
     
