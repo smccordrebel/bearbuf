@@ -270,11 +270,14 @@ class BearBufUI:
             value_list = []
 
             # @test plot stock date/values
+            start_date = self.stock_date[0]
+            end_date = self.stock_date[-1]
+            x_label = f"Weeks from {start_date} to {end_date}"
             date_list = list(range(len(self.stock_date)))
             value_list = [float(val) for val in self.stock_value]
 
             self.flow_line, = self.ax_flow.plot(date_list, value_list, linestyle='-', linewidth=1, color='#1f77b4')
-            self.ax_flow.set_xlabel(PLOT_X_LABEL)
+            self.ax_flow.set_xlabel(x_label)
             self.ax_flow.set_ylabel(PLOT_Y_LABEL)
             self.ax_flow.set_title(PLOT_TITLE_FLOW)
             self.ax_flow.grid(True, alpha=0.3)
