@@ -8,12 +8,13 @@ to utilize a portfolio of stocks/bonds/cash.
 """
 
 import tkinter as tk
-from tkinter import ttk, scrolledtext, messagebox
+from tkinter import ttk, messagebox
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 import logging
 from datetime import datetime
 import csv
+from enum import Enum
 
 __version__ = "0.1"
 
@@ -40,6 +41,10 @@ PLOT_X_LABEL = "Time (weeks)"
 PLOT_Y_LABEL = "Portfolio Value"
 PLOT_TITLE_FLOW = "Portfolio"
 PLOT_TITLE_FLOW_DRIFT = "Portfolio Over Time"
+
+class PlotType(Enum):
+    MARKET = 1
+    PORTFOLIO = 2
 
 # historical data to be read
 HISTORICAL_FILENAME = 'VTSAX_history.csv'
@@ -263,27 +268,40 @@ class BearBufUI:
         self.canvas_portfolio.draw()
         self.canvas_portfolio.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
-    def update_plot(self):
+    def update_plot(self, type:PlotType):
         """Display the portfolio data"""
         try:
             date_list = []
             value_list = []
 
-            # @test plot stock date/values
+            # plot stock date/values
             start_date = self.stock_date[0]
             end_date = self.stock_date[-1]
             x_label = f"Weeks from {start_date} to {end_date}"
+            stock_num_start = self.portfolio_start_val.get() / float(self.stock_value[0])
+            stock_num_end = stock_num_start
+            port_val_start = stock_num_start * float(self.stock_value[0])
+            port_val_end = stock_num_end * float(self.stock_value[-1])
+
+            if type == PlotType.MARKET:
+                title = f"Stock start:{self.stock_value[0]} end:{self.stock_value[-1]}"
+            else:
+                title = f"Portfolio start:{port_val_start:.2f} end:{port_val_end:.2f}"
+            
             date_list = list(range(len(self.stock_date)))
             value_list = [float(val) for val in self.stock_value]
 
             self.flow_line, = self.ax_portfolio.plot(date_list, value_list, linestyle='-', linewidth=1, color='#1f77b4')
             self.ax_portfolio.set_xlabel(x_label)
             self.ax_portfolio.set_ylabel(PLOT_Y_LABEL)
-            self.ax_portfolio.set_title(PLOT_TITLE_FLOW)
+            self.ax_portfolio.set_title(title)
             self.ax_portfolio.grid(True, alpha=0.3)
             
             self.figure_portfolio.tight_layout()
             self.canvas_portfolio.draw_idle()
+
+            self.stock_date.clear()
+            self.stock_value.clear()
 
         except Exception:
             logger.error("Unexpected plot update failure")
@@ -299,6 +317,13 @@ class BearBufUI:
         pass
 
     def on_historical_data(self):
+        """Read the historical data"""
+        self.historical_data_read()
+
+        if self.stock_date != [] and self.stock_value != []:
+            self.update_plot(PlotType.MARKET)
+
+    def historical_data_read(self):
         """Read the historical data"""
         try:
             with open(HISTORICAL_FILENAME, newline="", encoding="utf-8") as f:
@@ -321,14 +346,13 @@ class BearBufUI:
             str = f"Unexpected error when processing historical data from {HISTORICAL_FILENAME}"
             logger.error(str)
             messagebox.showerror("Error", str)
-
-        if self.stock_date != [] and self.stock_value != []:
-            self.update_plot()
-        
+    
     def on_run_calculator(self):
         """Run the calculator and display results."""
-        pass
+        self.historical_data_read()
 
+        if self.stock_date != [] and self.stock_value != []:
+            self.update_plot(PlotType.PORTFOLIO)
 
     def cleanup(self):
         """Clean up resources."""
