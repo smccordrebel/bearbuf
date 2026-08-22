@@ -62,6 +62,9 @@ class BearBufUI:
         self.root.title("Bear Buf Calculator")
         self.root.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
 
+        self.stock_date = []
+        self.stock_value = []
+
         # UI Components
         self.setup_ui()
     
@@ -263,29 +266,24 @@ class BearBufUI:
     def update_plot(self):
         """Display the portfolio data"""
         try:
-            time_list = []
-            flow_list = []
+            date_list = []
+            value_list = []
 
-            # Update flow impedance plot - reuse existing lines
-            if not hasattr(self, 'flow_line'):
-                # First time: create the plot
-                self.flow_line, = self.ax_flow.plot(time_list, flow_list, marker='o', linestyle='-', linewidth=1, color='#1f77b4')
-                self.ax_flow.set_xlabel(PLOT_X_LABEL)
-                self.ax_flow.set_ylabel(PLOT_Y_LABEL)
-                self.ax_flow.set_title(PLOT_TITLE_FLOW)
-                self.ax_flow.grid(True, alpha=0.3)
-            else:
-                # Subsequent updates: just update the data
-                self.flow_line.set_data(time_list, flow_list)
-                # Auto-scale axes to fit new data
-                self.ax_flow.relim()
-                self.ax_flow.autoscale_view()
+            # @test plot stock date/values
+            date_list = list(range(len(self.stock_date)))
+            value_list = [float(val) for val in self.stock_value]
+
+            self.flow_line, = self.ax_flow.plot(date_list, value_list, linestyle='-', linewidth=1, color='#1f77b4')
+            self.ax_flow.set_xlabel(PLOT_X_LABEL)
+            self.ax_flow.set_ylabel(PLOT_Y_LABEL)
+            self.ax_flow.set_title(PLOT_TITLE_FLOW)
+            self.ax_flow.grid(True, alpha=0.3)
             
             self.figure_flow.tight_layout()
             self.canvas_flow.draw_idle()
 
         except Exception:
-            self.log.error("Unexpected plot update failure")
+            logger.error("Unexpected plot update failure")
 
     def ui_var_disable(self, ui_var):
         ui_var.config(state=tk.DISABLED)
@@ -299,15 +297,13 @@ class BearBufUI:
 
     def on_historical_data(self):
         """Read the historical data"""
-        date = []
-        value = []
         try:
             with open(HISTORICAL_FILENAME, newline="", encoding="utf-8") as f:
                 reader = csv.reader(f)
                 for row in reader:
                     if len(row) >= 2:
-                        date.append(row[0])
-                        value.append(row[1])
+                        self.stock_date.append(row[0])
+                        self.stock_value.append(row[1])
         except:
             str = f"Error when reading historical data from {HISTORICAL_FILENAME}. "
             str += "Verify the file exists and try again."
@@ -315,13 +311,16 @@ class BearBufUI:
             messagebox.showerror("Error", str)
 
         try:
-            for index in range(len(date)): 
-                str = f"{date[index]}, {value[index]}"
+            for index in range(len(self.stock_date)): 
+                str = f"{self.stock_date[index]}, {self.stock_value[index]}"
                 logger.info(str)
         except:
             str = f"Unexpected error when processing historical data from {HISTORICAL_FILENAME}"
             logger.error(str)
             messagebox.showerror("Error", str)
+
+        if self.stock_date != [] and self.stock_value != []:
+            self.update_plot()
         
     def on_run_calculator(self):
         """Run the calculator and display results."""
