@@ -251,17 +251,17 @@ class BearBufUI:
         graph_frame_1.pack(fill=tk.BOTH, expand=True, pady=5)
 
         # Create matplotlib figure for portfolio value
-        self.figure_flow = Figure(figsize=(8, 4), dpi=100)
-        self.ax_flow = self.figure_flow.add_subplot(111)
-        self.ax_flow.set_xlabel(PLOT_X_LABEL)
-        self.ax_flow.set_ylabel(PLOT_Y_LABEL)
-        self.ax_flow.set_title(PLOT_TITLE_FLOW)
-        self.ax_flow.grid(True, alpha=0.3)
+        self.figure_portfolio = Figure(figsize=(8, 4), dpi=100)
+        self.ax_portfolio = self.figure_portfolio.add_subplot(111)
+        self.ax_portfolio.set_xlabel(PLOT_X_LABEL)
+        self.ax_portfolio.set_ylabel(PLOT_Y_LABEL)
+        self.ax_portfolio.set_title(PLOT_TITLE_FLOW)
+        self.ax_portfolio.grid(True, alpha=0.3)
 
         # Embed matplotlib in tkinter
-        self.canvas_flow = FigureCanvasTkAgg(self.figure_flow, master=graph_frame_1)
-        self.canvas_flow.draw()
-        self.canvas_flow.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        self.canvas_portfolio = FigureCanvasTkAgg(self.figure_portfolio, master=graph_frame_1)
+        self.canvas_portfolio.draw()
+        self.canvas_portfolio.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
     def update_plot(self):
         """Display the portfolio data"""
@@ -276,14 +276,14 @@ class BearBufUI:
             date_list = list(range(len(self.stock_date)))
             value_list = [float(val) for val in self.stock_value]
 
-            self.flow_line, = self.ax_flow.plot(date_list, value_list, linestyle='-', linewidth=1, color='#1f77b4')
-            self.ax_flow.set_xlabel(x_label)
-            self.ax_flow.set_ylabel(PLOT_Y_LABEL)
-            self.ax_flow.set_title(PLOT_TITLE_FLOW)
-            self.ax_flow.grid(True, alpha=0.3)
+            self.flow_line, = self.ax_portfolio.plot(date_list, value_list, linestyle='-', linewidth=1, color='#1f77b4')
+            self.ax_portfolio.set_xlabel(x_label)
+            self.ax_portfolio.set_ylabel(PLOT_Y_LABEL)
+            self.ax_portfolio.set_title(PLOT_TITLE_FLOW)
+            self.ax_portfolio.grid(True, alpha=0.3)
             
-            self.figure_flow.tight_layout()
-            self.canvas_flow.draw_idle()
+            self.figure_portfolio.tight_layout()
+            self.canvas_portfolio.draw_idle()
 
         except Exception:
             logger.error("Unexpected plot update failure")
