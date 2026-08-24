@@ -279,11 +279,6 @@ class BearBufUI:
             port_val_start = stock_num_start * float(self.stock_value[0])
             port_val_end = stock_num_end * float(self.stock_value[-1])
 
-            if type == PlotType.MARKET:
-                title = f"Stock start:{self.stock_value[0]} end:{self.stock_value[-1]}"
-            else:
-                title = f"Portfolio start:{port_val_start:.2f} end:{port_val_end:.2f}"
-
             week_list = list(range(len(self.stock_date)))
             stock_val_list = [float(val) for val in self.stock_value]
 
@@ -293,7 +288,40 @@ class BearBufUI:
                 messagebox.showerror("Error", str)
                 return
 
-            self.flow_line, = self.ax_portfolio.plot(week_list, stock_val_list, linestyle='-', linewidth=1, color='#1f77b4')
+            # starting weekly expenses and portfolio value
+            weekly_expense_val = self.weekly_expenses_val.get()
+
+            weekly_port_val = port_val_start
+            remaining_stock_num = stock_num_start
+
+            port_val_list = []
+            port_val_list.append(weekly_port_val)
+            for week in week_list[1:]:
+                expense_stock_num = weekly_expense_val / stock_val_list[week]
+                remaining_stock_num -= expense_stock_num
+
+                if remaining_stock_num < 0:
+                    str = f"You broke!"
+                    logger.error(str)
+                    messagebox.showerror("Error", str)
+                    return
+                
+                weekly_port_val = remaining_stock_num * stock_val_list[week]
+                port_val_list.append(weekly_port_val)
+                # update weekly_expense_val for inflation
+
+            if len(port_val_list) != len(week_list):
+                str = f"port val list length: {len(port_val_list)}, week list length: {len(week_list)}"
+                logger.error(str)
+                messagebox.showerror("Error", str)                   
+                return
+
+            if type == PlotType.MARKET:
+                title = f"Stock start:{self.stock_value[0]} end:{self.stock_value[-1]}"
+            else:
+                title = f"Portfolio start:{port_val_start:.2f} end:{port_val_list[-1]:.2f}"
+
+            self.flow_line, = self.ax_portfolio.plot(week_list, port_val_list, linestyle='-', linewidth=1, color='#1f77b4')
             self.ax_portfolio.set_xlabel(x_label)
             self.ax_portfolio.set_ylabel(PLOT_Y_LABEL)
             self.ax_portfolio.set_title(title)
