@@ -365,6 +365,7 @@ class BearBufUI:
         )
 
     def inflation_weekly_calc(self, annual_inflation_rate: float) -> float:
+        """Calculation the weekly inflation rate"""
         annual = annual_inflation_rate / 100
         weekly_inflation_rate = (1 + annual) ** (1 / 52) - 1
         return weekly_inflation_rate
@@ -375,7 +376,7 @@ class BearBufUI:
         weekly_expenses_start: float,
         annual_inflation_rate: float
     ):
-        """Display the portfolio data."""
+        """Calculate and display the portfolio data over time"""
         try:
             x_label = f"Weeks from {self.stock_date[0]} to {self.stock_date[-1]}"
 
@@ -417,7 +418,8 @@ class BearBufUI:
                 remaining_stock_num -= expense_stock_num
 
                 if remaining_stock_num < 0:
-                    err = f"You broke in week {week}!"
+                    err = f"You started spending on {self.stock_date[0]}. "
+                    err += f"You broke on {self.stock_date[week]} :("
                     logger.error(err)
                     messagebox.showerror("Error", err)
                     return
@@ -437,8 +439,8 @@ class BearBufUI:
                 return
 
             title = (
-                f"Portfolio start:{port_val_start:.2f} "
-                f"end:{port_val_list[-1]:.2f}"
+                f"Portfolio start: {port_val_start:.2f} "
+                f"end: {port_val_list[-1]:.2f}"
             )
 
             self.ax_portfolio.clear()
@@ -461,8 +463,9 @@ class BearBufUI:
             self.stock_value.clear()
 
         except Exception:
-            logger.exception("Unexpected plot update failure")
-            messagebox.showerror("Error", "Unexpected plot update failure.")
+            str = "Unexpected plot update failure"
+            logger.exception(str)
+            messagebox.showerror("Error", str)
 
     def ui_var_disable(self, ui_var):
         ui_var.config(state=tk.DISABLED)
