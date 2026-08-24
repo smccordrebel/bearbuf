@@ -171,33 +171,33 @@ class BearBufUI:
         )
         self.weekly_expenses_entry.pack(side=tk.LEFT, padx=5)
 
-        # inflation rate entry
-        inflation_rate_frame = ttk.LabelFrame(calculator_frame, padding=5)
-        inflation_rate_frame.pack(fill=tk.X, pady=5)
+        # annual inflation rate entry
+        annual_inflation_frame = ttk.LabelFrame(calculator_frame, padding=5)
+        annual_inflation_frame.pack(fill=tk.X, pady=5)
 
-        ttk.Label(inflation_rate_frame, text="Inflation Rate %").pack(side=tk.LEFT, padx=(0, 5))
-        self.inflation_rate_val = tk.IntVar(value=3)
-        self.inflation_rate_entry = ttk.Entry(
-            inflation_rate_frame,
-            textvariable=self.inflation_rate_val,
+        ttk.Label(annual_inflation_frame, text="Annual Inflation Rate %").pack(side=tk.LEFT, padx=(0, 5))
+        self.annual_inflation_rate_val = tk.IntVar(value=3)
+        self.annual_inflation_rate_entry = ttk.Entry(
+            annual_inflation_frame,
+            textvariable=self.annual_inflation_rate_val,
             width=10,
             justify=tk.RIGHT
         )
-        self.inflation_rate_entry.pack(side=tk.LEFT, padx=5)
+        self.annual_inflation_rate_entry.pack(side=tk.LEFT, padx=5)
 
         # Interest rate entry
-        interest_rate_frame = ttk.LabelFrame(calculator_frame, padding=5)
-        interest_rate_frame.pack(fill=tk.X, pady=5)
+        annual_interest_rate_frame = ttk.LabelFrame(calculator_frame, padding=5)
+        annual_interest_rate_frame.pack(fill=tk.X, pady=5)
 
-        ttk.Label(interest_rate_frame, text="Interest Rate %").pack(side=tk.LEFT, padx=(0, 5))
-        self.interest_rate_val = tk.IntVar(value=4)
-        self.interest_rate_entry = ttk.Entry(
-            interest_rate_frame,
-            textvariable=self.interest_rate_val,
+        ttk.Label(annual_interest_rate_frame, text="Annual Interest Rate %").pack(side=tk.LEFT, padx=(0, 5))
+        self.annual_interest_rate_val = tk.IntVar(value=4)
+        self.annual_interest_rate_entry = ttk.Entry(
+            annual_interest_rate_frame,
+            textvariable=self.annual_interest_rate_val,
             width=10,
             justify=tk.RIGHT
         )
-        self.interest_rate_entry.pack(side=tk.LEFT, padx=5)
+        self.annual_interest_rate_entry.pack(side=tk.LEFT, padx=5)
 
         # run calculator button
         calculator_run_frame = ttk.Frame(calculator_frame)
@@ -268,6 +268,12 @@ class BearBufUI:
         self.canvas_portfolio.draw()
         self.canvas_portfolio.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
+    def inflation_weekly_calc(self) -> float:
+        annual = self.annual_inflation_rate_val.get() / 100
+        weekly_inflation_rate = (1 + annual) ** (1 / 52) - 1
+        return weekly_inflation_rate
+
+
     def update_plot(self, type:PlotType):
         """Display the portfolio data"""
         try:
@@ -301,14 +307,16 @@ class BearBufUI:
                 remaining_stock_num -= expense_stock_num
 
                 if remaining_stock_num < 0:
-                    str = f"You broke!"
+                    str = f"You broke in week {week}!"
                     logger.error(str)
                     messagebox.showerror("Error", str)
                     return
                 
                 weekly_port_val = remaining_stock_num * stock_val_list[week]
                 port_val_list.append(weekly_port_val)
-                # update weekly_expense_val for inflation
+
+                # update expenses for inflation
+                weekly_expense_val += weekly_expense_val * self.inflation_weekly_calc()
 
             if len(port_val_list) != len(week_list):
                 str = f"port val list length: {len(port_val_list)}, week list length: {len(week_list)}"
