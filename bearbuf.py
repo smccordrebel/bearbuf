@@ -164,10 +164,10 @@ class BearBufUI:
         )
 
         self.portfolio_start_val = tk.StringVar(value="2000000")
-        self.weekly_expenses_val = tk.StringVar(value="2000")
-        self.annual_inflation_rate_val = tk.StringVar(value="2.5")
+        self.weekly_expenses_val = tk.StringVar(value="1600")
+        self.annual_inflation_rate_val = tk.StringVar(value="3")
         self.annual_interest_rate_val = tk.StringVar(value="4")
-        self.bear_calm_amount_val = tk.StringVar(value="10000")
+        self.bear_calm_amount_val = tk.StringVar(value="0")
 
         vcmd_int = (self.root.register(self.validate_integer_entry), "%P")
         vcmd_float = (self.root.register(self.validate_float_entry), "%P")
@@ -390,6 +390,32 @@ class BearBufUI:
         weekly_inflation_rate = (1 + annual) ** (1 / 52) - 1
         return weekly_inflation_rate
 
+    def expense_stock_calc(self, expense, stock_price):
+        """
+        analyze for bear, 20% down from 10 week highs until what? 
+        Or just spend the entire bear calming and don't worry about it
+
+        if bear_start[week]:
+            if bear_calm == 0:
+                expense_stock_num = expense_val / stock_val
+                return
+
+            if expense_val <= bear_calm
+                expense_stock_num = 0
+                bear_calm -= expense_val
+            else
+                expense_val -= bear_calm
+                expense_stock_num = expense_val / stock_val
+        else
+            expense_stock_num = expense_val / stock_val
+
+        """
+        stock_num = 0
+        if float(self.bear_calm_amount_val.get()) == 0.0:
+            stock_num = expense / stock_price
+
+        return stock_num
+
     def update_plot(
         self,
         portfolio_start: float,
@@ -399,8 +425,6 @@ class BearBufUI:
     ):
         """Calculate and display the portfolio data over time"""
         try:
-            print(f"{bear_calm_amount}")
-
             x_label = f"Weeks from {self.stock_date[0]} to {self.stock_date[-1]}"
 
             first_stock_price = float(self.stock_value[0])
@@ -437,7 +461,27 @@ class BearBufUI:
                     messagebox.showerror("Error", err)
                     return
 
-                expense_stock_num = weekly_expense_val / stock_val_list[week]
+                """
+                analyze for bear, 20% down from 10 week highs until what? 
+                Or just spend the entire bear calming and don't worry about it
+
+                if bear_start[week]:
+                    if bear_calm == 0:
+                        expense_stock_num = expense_val / stock_val
+                        return
+
+                    if expense_val <= bear_calm
+                        expense_stock_num = 0
+                        bear_calm -= expense_val
+                    else
+                        expense_val -= bear_calm
+                        expense_stock_num = expense_val / stock_val
+                else
+                    expense_stock_num = expense_val / stock_val
+
+                """
+                #expense_stock_num = weekly_expense_val / stock_val_list[week]
+                expense_stock_num = self.expense_stock_calc(weekly_expense_val, stock_val_list[week])
                 remaining_stock_num -= expense_stock_num
 
                 if remaining_stock_num < 0:
