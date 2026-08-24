@@ -160,34 +160,45 @@ class BearBufUI:
             row=3, column=0, sticky="w", padx=(0, 10), pady=4
         )
 
-        self.portfolio_start_val = tk.IntVar(value=2000000)
-        self.weekly_expenses_val = tk.IntVar(value=2000)
-        self.annual_inflation_rate_val = tk.IntVar(value=3)
-        self.annual_interest_rate_val = tk.IntVar(value=4)
+        self.portfolio_start_val = tk.StringVar(value="2000000")
+        self.weekly_expenses_val = tk.StringVar(value="2000")
+        self.annual_inflation_rate_val = tk.StringVar(value="3")
+        self.annual_interest_rate_val = tk.StringVar(value="4")
+
+        vcmd_int = (self.root.register(self.validate_integer_entry), "%P")
+        vcmd_float = (self.root.register(self.validate_float_entry), "%P")
 
         self.portfolio_start_entry = ttk.Entry(
             inputs_frame,
             textvariable=self.portfolio_start_val,
             width=14,
-            justify=tk.RIGHT
+            justify=tk.RIGHT,
+            validate="key",
+            validatecommand=vcmd_int
         )
         self.weekly_expenses_entry = ttk.Entry(
             inputs_frame,
             textvariable=self.weekly_expenses_val,
             width=14,
-            justify=tk.RIGHT
+            justify=tk.RIGHT,
+            validate="key",
+            validatecommand=vcmd_int
         )
         self.annual_inflation_rate_entry = ttk.Entry(
             inputs_frame,
             textvariable=self.annual_inflation_rate_val,
             width=14,
-            justify=tk.RIGHT
+            justify=tk.RIGHT,
+            validate="key",
+            validatecommand=vcmd_float
         )
         self.annual_interest_rate_entry = ttk.Entry(
             inputs_frame,
             textvariable=self.annual_interest_rate_val,
             width=14,
-            justify=tk.RIGHT
+            justify=tk.RIGHT,
+            validate="key",
+            validatecommand=vcmd_float
         )
 
         self.portfolio_start_entry.grid(row=0, column=1, sticky="ew", pady=4)
@@ -281,18 +292,102 @@ class BearBufUI:
             row=0, column=0, sticky="nsew"
         )
 
-    def inflation_weekly_calc(self) -> float:
-        annual = self.annual_inflation_rate_val.get() / 100
+    def validate_integer_entry(self, proposed: str) -> bool:
+        """Allow blank or non-negative integers."""
+        if proposed == "":
+            return True
+        return proposed.isdigit()
+
+    def validate_float_entry(self, proposed: str) -> bool:
+        """Allow blank or non-negative float values."""
+        if proposed == "":
+            return True
+        if proposed.count(".") > 1:
+            return False
+        if proposed == ".":
+            return True
+        try:
+            value = float(proposed)
+            return value >= 0
+        except ValueError:
+            return False
+
+    def parse_positive_number(
+        self,
+        value: str,
+        field_name: str,
+        allow_zero: bool = False
+    ) -> float:
+        """Parse and validate a numeric field."""
+        if value.strip() == "":
+            raise ValueError(f"{field_name} is required.")
+
+        try:
+            number = float(value)
+        except ValueError as exc:
+            raise ValueError(f"{field_name} must be a valid number.") from exc
+
+        if allow_zero:
+            if number < 0:
+                raise ValueError(f"{field_name} must be 0 or greater.")
+        else:
+            if number <= 0:
+                raise ValueError(f"{field_name} must be greater than 0.")
+
+        return number
+
+    def validate_inputs(self):
+        """Validate all user inputs and return parsed numeric values."""
+        portfolio_start = self.parse_positive_number(
+            self.portfolio_start_val.get(),
+            "Starting Portfolio"
+        )
+        weekly_expenses = self.parse_positive_number(
+            self.weekly_expenses_val.get(),
+            "Weekly Expenses"
+        )
+        annual_inflation_rate = self.parse_positive_number(
+            self.annual_inflation_rate_val.get(),
+            "Annual Inflation Rate",
+            allow_zero=True
+        )
+        annual_interest_rate = self.parse_positive_number(
+            self.annual_interest_rate_val.get(),
+            "Annual Interest Rate",
+            allow_zero=True
+        )
+
+        return (
+            portfolio_start,
+            weekly_expenses,
+            annual_inflation_rate,
+            annual_interest_rate
+        )
+
+    def inflation_weekly_calc(self, annual_inflation_rate: float) -> float:
+        annual = annual_inflation_rate / 100
         weekly_inflation_rate = (1 + annual) ** (1 / 52) - 1
         return weekly_inflation_rate
 
-    def update_plot(self):
-        """Display the portfolio data"""
+    def update_plot(
+        self,
+        portfolio_start: float,
+        weekly_expenses_start: float,
+        annual_inflation_rate: float
+    ):
+        """Display the portfolio data."""
         try:
             x_label = f"Weeks from {self.stock_date[0]} to {self.stock_date[-1]}"
 
-            stock_num_start = self.portfolio_start_val.get() / float(self.stock_value[0])
-            port_val_start = stock_num_start * float(self.stock_value[0])
+            first_stock_price = float(self.stock_value[0])
+            if first_stock_price <= 0:
+                err = "Historical starting stock value must be greater than 0."
+                logger.error(err)
+                messagebox.showerror("Error", err)
+                return
+
+            stock_num_start = portfolio_start / first_stock_price
+            port_val_start = stock_num_start * first_stock_price
 
             week_list = list(range(len(self.stock_date)))
             stock_val_list = [float(val) for val in self.stock_value]
@@ -303,13 +398,21 @@ class BearBufUI:
                 messagebox.showerror("Error", err)
                 return
 
-            weekly_expense_val = self.weekly_expenses_val.get()
+            weekly_expense_val = weekly_expenses_start
             weekly_port_val = port_val_start
             remaining_stock_num = stock_num_start
 
             port_val_list = [weekly_port_val]
 
+            weekly_inflation_rate = self.inflation_weekly_calc(annual_inflation_rate)
+
             for week in week_list[1:]:
+                if stock_val_list[week] <= 0:
+                    err = f"Historical stock value at week {week} must be greater than 0."
+                    logger.error(err)
+                    messagebox.showerror("Error", err)
+                    return
+
                 expense_stock_num = weekly_expense_val / stock_val_list[week]
                 remaining_stock_num -= expense_stock_num
 
@@ -322,9 +425,7 @@ class BearBufUI:
                 weekly_port_val = remaining_stock_num * stock_val_list[week]
                 port_val_list.append(weekly_port_val)
 
-                weekly_expense_val += (
-                    weekly_expense_val * self.inflation_weekly_calc()
-                )
+                weekly_expense_val += weekly_expense_val * weekly_inflation_rate
 
             if len(port_val_list) != len(week_list):
                 err = (
@@ -361,6 +462,7 @@ class BearBufUI:
 
         except Exception:
             logger.exception("Unexpected plot update failure")
+            messagebox.showerror("Error", "Unexpected plot update failure.")
 
     def ui_var_disable(self, ui_var):
         ui_var.config(state=tk.DISABLED)
@@ -400,10 +502,31 @@ class BearBufUI:
 
     def on_calculator_run(self):
         """Run the calculator and display results."""
+        try:
+            (
+                portfolio_start,
+                weekly_expenses,
+                annual_inflation_rate,
+                annual_interest_rate,
+            ) = self.validate_inputs()
+        except ValueError as exc:
+            logger.error(str(exc))
+            messagebox.showerror("Input Error", str(exc))
+            return
+
         self.historical_data_read()
 
-        if self.stock_date and self.stock_value:
-            self.update_plot()
+        if not self.stock_date or not self.stock_value:
+            return
+
+        # annual_interest_rate parsed and validated for future use
+        _ = annual_interest_rate
+
+        self.update_plot(
+            portfolio_start=portfolio_start,
+            weekly_expenses_start=weekly_expenses,
+            annual_inflation_rate=annual_inflation_rate
+        )
 
     def cleanup(self):
         """Clean up resources."""
