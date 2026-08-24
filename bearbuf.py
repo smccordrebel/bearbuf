@@ -323,9 +323,16 @@ class BearBufUI:
         if self.stock_date != [] and self.stock_value != []:
             self.update_plot(PlotType.MARKET)
 
+    def history_clear(self):
+        """Clear history"""
+        self.stock_date.clear()
+        self.stock_value.clear()
+
     def historical_data_read(self):
         """Read the historical data"""
         try:
+            self.history_clear()
+
             with open(HISTORICAL_FILENAME, newline="", encoding="utf-8") as f:
                 reader = csv.reader(f)
                 for row in reader:
@@ -333,6 +340,7 @@ class BearBufUI:
                         self.stock_date.append(row[0])
                         self.stock_value.append(row[1])
         except:
+            self.history_clear()
             str = f"Error when reading historical data from {HISTORICAL_FILENAME}. "
             str += "Verify the file exists and try again."
             logger.error(str)
