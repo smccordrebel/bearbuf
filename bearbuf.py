@@ -159,11 +159,15 @@ class BearBufUI:
         ttk.Label(inputs_frame, text="Annual Interest Rate %").grid(
             row=3, column=0, sticky="w", padx=(0, 10), pady=4
         )
+        ttk.Label(inputs_frame, text="Bear Calm Amount $").grid(
+            row=4, column=0, sticky="w", padx=(0, 10), pady=4
+        )
 
         self.portfolio_start_val = tk.StringVar(value="2000000")
         self.weekly_expenses_val = tk.StringVar(value="2000")
-        self.annual_inflation_rate_val = tk.StringVar(value="3")
+        self.annual_inflation_rate_val = tk.StringVar(value="2.5")
         self.annual_interest_rate_val = tk.StringVar(value="4")
+        self.bear_calm_amount_val = tk.StringVar(value="10000")
 
         vcmd_int = (self.root.register(self.validate_integer_entry), "%P")
         vcmd_float = (self.root.register(self.validate_float_entry), "%P")
@@ -201,10 +205,20 @@ class BearBufUI:
             validatecommand=vcmd_float
         )
 
+        self.bear_calm_amount_entry = ttk.Entry(
+            inputs_frame,
+            textvariable=self.bear_calm_amount_val,
+            width=14,
+            justify=tk.RIGHT,
+            validate="key",
+            validatecommand=vcmd_float
+        )
+
         self.portfolio_start_entry.grid(row=0, column=1, sticky="ew", pady=4)
         self.weekly_expenses_entry.grid(row=1, column=1, sticky="ew", pady=4)
         self.annual_inflation_rate_entry.grid(row=2, column=1, sticky="ew", pady=4)
         self.annual_interest_rate_entry.grid(row=3, column=1, sticky="ew", pady=4)
+        self.bear_calm_amount_entry.grid(row=4, column=1, sticky="ew", pady=4)
 
         calculator_run_frame = ttk.Frame(calculator_frame)
         calculator_run_frame.grid(row=1, column=0, sticky="ew", pady=4)
@@ -356,12 +370,18 @@ class BearBufUI:
             "Annual Interest Rate",
             allow_zero=True
         )
+        bear_calm_amount = self.parse_positive_number(
+            self.bear_calm_amount_val.get(),
+            "Bear Calm Amount",
+            allow_zero=True
+        )
 
         return (
             portfolio_start,
             weekly_expenses,
             annual_inflation_rate,
-            annual_interest_rate
+            annual_interest_rate,
+            bear_calm_amount
         )
 
     def inflation_weekly_calc(self, annual_inflation_rate: float) -> float:
@@ -374,10 +394,13 @@ class BearBufUI:
         self,
         portfolio_start: float,
         weekly_expenses_start: float,
-        annual_inflation_rate: float
+        annual_inflation_rate: float,
+        bear_calm_amount: float
     ):
         """Calculate and display the portfolio data over time"""
         try:
+            print(f"{bear_calm_amount}")
+
             x_label = f"Weeks from {self.stock_date[0]} to {self.stock_date[-1]}"
 
             first_stock_price = float(self.stock_value[0])
@@ -511,6 +534,7 @@ class BearBufUI:
                 weekly_expenses,
                 annual_inflation_rate,
                 annual_interest_rate,
+                bear_calm_amount
             ) = self.validate_inputs()
         except ValueError as exc:
             logger.error(str(exc))
@@ -528,7 +552,8 @@ class BearBufUI:
         self.update_plot(
             portfolio_start=portfolio_start,
             weekly_expenses_start=weekly_expenses,
-            annual_inflation_rate=annual_inflation_rate
+            annual_inflation_rate=annual_inflation_rate,
+            bear_calm_amount=bear_calm_amount
         )
 
     def cleanup(self):
