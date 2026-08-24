@@ -132,16 +132,16 @@ class BearBufUI:
         calculator_frame.pack(fill=tk.X, pady=5)
 
         # read historical data
-        historical_data_frame = ttk.Frame(calculator_frame)
-        historical_data_frame.pack(fill=tk.X, pady=2)
+        history_data_frame = ttk.Frame(calculator_frame)
+        history_data_frame.pack(fill=tk.X, pady=2)
 
-        self.historical_data_button = ttk.Button(
-            historical_data_frame,
+        self.history_read_button = ttk.Button(
+            history_data_frame,
             text="Read Historical Data",
-            command=self.on_historical_data,
+            command=self.on_history_read,
             state=tk.NORMAL
         )
-        self.historical_data_button.pack(side=tk.LEFT, padx=2, fill=tk.X, expand=True)
+        self.history_read_button.pack(side=tk.LEFT, padx=2, fill=tk.X, expand=True)
 
         # Starting portfolio value entry
         portfolio_frame = ttk.LabelFrame(calculator_frame, padding=5)
@@ -200,16 +200,16 @@ class BearBufUI:
         self.interest_rate_entry.pack(side=tk.LEFT, padx=5)
 
         # run calculator button
-        run_calculator_frame = ttk.Frame(calculator_frame)
-        run_calculator_frame.pack(fill=tk.X, pady=2)
+        calculator_run_frame = ttk.Frame(calculator_frame)
+        calculator_run_frame.pack(fill=tk.X, pady=2)
 
-        self.run_calculator_button = ttk.Button(
-            run_calculator_frame,
+        self.calculator_run_button = ttk.Button(
+            calculator_run_frame,
             text="Run Calculator",
-            command=self.on_run_calculator,
+            command=self.on_calculator_run,
             state=tk.NORMAL
         )
-        self.run_calculator_button.pack(side=tk.LEFT, padx=2, fill=tk.X, expand=True)
+        self.calculator_run_button.pack(side=tk.LEFT, padx=2, fill=tk.X, expand=True)
 
         # Right panel: Scrollable Graphs
         right_panel = ttk.Frame(main_container)
@@ -271,13 +271,9 @@ class BearBufUI:
     def update_plot(self, type:PlotType):
         """Display the portfolio data"""
         try:
-            week_list = []
-            stock_val_list = []
+            x_label = f"Weeks from {self.stock_date[0]} to {self.stock_date[-1]}"
 
-            # plot stock date/values
-            start_date = self.stock_date[0]
-            end_date = self.stock_date[-1]
-            x_label = f"Weeks from {start_date} to {end_date}"
+            # calculate the total number of shares at the beginning
             stock_num_start = self.portfolio_start_val.get() / float(self.stock_value[0])
             stock_num_end = stock_num_start
             port_val_start = stock_num_start * float(self.stock_value[0])
@@ -287,9 +283,15 @@ class BearBufUI:
                 title = f"Stock start:{self.stock_value[0]} end:{self.stock_value[-1]}"
             else:
                 title = f"Portfolio start:{port_val_start:.2f} end:{port_val_end:.2f}"
-            
+
             week_list = list(range(len(self.stock_date)))
             stock_val_list = [float(val) for val in self.stock_value]
+
+            if len(week_list) != len(stock_val_list):
+                str = f"Stock date and value lists are not the same length"
+                logger.error(str)
+                messagebox.showerror("Error", str)
+                return
 
             self.flow_line, = self.ax_portfolio.plot(week_list, stock_val_list, linestyle='-', linewidth=1, color='#1f77b4')
             self.ax_portfolio.set_xlabel(x_label)
@@ -316,7 +318,7 @@ class BearBufUI:
         """Cleanup on a disconnection event"""
         pass
 
-    def on_historical_data(self):
+    def on_history_read(self):
         """Read the historical data"""
         self.historical_data_read()
 
@@ -346,7 +348,7 @@ class BearBufUI:
             logger.error(str)
             messagebox.showerror("Error", str)
     
-    def on_run_calculator(self):
+    def on_calculator_run(self):
         """Run the calculator and display results."""
         self.historical_data_read()
 
