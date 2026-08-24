@@ -271,8 +271,8 @@ class BearBufUI:
     def update_plot(self, type:PlotType):
         """Display the portfolio data"""
         try:
-            date_list = []
-            value_list = []
+            week_list = []
+            stock_val_list = []
 
             # plot stock date/values
             start_date = self.stock_date[0]
@@ -288,10 +288,10 @@ class BearBufUI:
             else:
                 title = f"Portfolio start:{port_val_start:.2f} end:{port_val_end:.2f}"
             
-            date_list = list(range(len(self.stock_date)))
-            value_list = [float(val) for val in self.stock_value]
+            week_list = list(range(len(self.stock_date)))
+            stock_val_list = [float(val) for val in self.stock_value]
 
-            self.flow_line, = self.ax_portfolio.plot(date_list, value_list, linestyle='-', linewidth=1, color='#1f77b4')
+            self.flow_line, = self.ax_portfolio.plot(week_list, stock_val_list, linestyle='-', linewidth=1, color='#1f77b4')
             self.ax_portfolio.set_xlabel(x_label)
             self.ax_portfolio.set_ylabel(PLOT_Y_LABEL)
             self.ax_portfolio.set_title(title)
@@ -343,15 +343,6 @@ class BearBufUI:
             self.history_clear()
             str = f"Error when reading historical data from {HISTORICAL_FILENAME}. "
             str += "Verify the file exists and try again."
-            logger.error(str)
-            messagebox.showerror("Error", str)
-
-        try:
-            for index in range(len(self.stock_date)): 
-                str = f"{self.stock_date[index]}, {self.stock_value[index]}"
-                logger.info(str)
-        except:
-            str = f"Unexpected error when processing historical data from {HISTORICAL_FILENAME}"
             logger.error(str)
             messagebox.showerror("Error", str)
     
