@@ -42,10 +42,6 @@ PLOT_Y_LABEL = "Portfolio Value"
 PLOT_TITLE_FLOW = "Portfolio"
 PLOT_TITLE_FLOW_DRIFT = "Portfolio Over Time"
 
-class PlotType(Enum):
-    MARKET = 1
-    PORTFOLIO = 2
-
 # historical data to be read
 HISTORICAL_FILENAME = 'VTSAX_history.csv'
 
@@ -130,18 +126,6 @@ class BearBufUI:
         # calculator frame for left panel
         calculator_frame = ttk.LabelFrame(left_container, text="Calculator", padding=10)
         calculator_frame.pack(fill=tk.X, pady=5)
-
-        # read historical data
-        history_data_frame = ttk.Frame(calculator_frame)
-        history_data_frame.pack(fill=tk.X, pady=2)
-
-        self.history_read_button = ttk.Button(
-            history_data_frame,
-            text="Read Historical Data",
-            command=self.on_history_read,
-            state=tk.NORMAL
-        )
-        self.history_read_button.pack(side=tk.LEFT, padx=2, fill=tk.X, expand=True)
 
         # Starting portfolio value entry
         portfolio_frame = ttk.LabelFrame(calculator_frame, padding=5)
@@ -274,16 +258,14 @@ class BearBufUI:
         return weekly_inflation_rate
 
 
-    def update_plot(self, type:PlotType):
+    def update_plot(self):
         """Display the portfolio data"""
         try:
             x_label = f"Weeks from {self.stock_date[0]} to {self.stock_date[-1]}"
 
             # calculate the total number of shares at the beginning
             stock_num_start = self.portfolio_start_val.get() / float(self.stock_value[0])
-            stock_num_end = stock_num_start
             port_val_start = stock_num_start * float(self.stock_value[0])
-            port_val_end = stock_num_end * float(self.stock_value[-1])
 
             week_list = list(range(len(self.stock_date)))
             stock_val_list = [float(val) for val in self.stock_value]
@@ -324,10 +306,7 @@ class BearBufUI:
                 messagebox.showerror("Error", str)                   
                 return
 
-            if type == PlotType.MARKET:
-                title = f"Stock start:{self.stock_value[0]} end:{self.stock_value[-1]}"
-            else:
-                title = f"Portfolio start:{port_val_start:.2f} end:{port_val_list[-1]:.2f}"
+            title = f"Portfolio start:{port_val_start:.2f} end:{port_val_list[-1]:.2f}"
 
             self.flow_line, = self.ax_portfolio.plot(week_list, port_val_list, linestyle='-', linewidth=1, color='#1f77b4')
             self.ax_portfolio.set_xlabel(x_label)
@@ -353,13 +332,6 @@ class BearBufUI:
     def disconnect_cleanup(self):
         """Cleanup on a disconnection event"""
         pass
-
-    def on_history_read(self):
-        """Read the historical data"""
-        self.historical_data_read()
-
-        if self.stock_date != [] and self.stock_value != []:
-            self.update_plot(PlotType.MARKET)
 
     def history_clear(self):
         """Clear history"""
@@ -389,7 +361,7 @@ class BearBufUI:
         self.historical_data_read()
 
         if self.stock_date != [] and self.stock_value != []:
-            self.update_plot(PlotType.PORTFOLIO)
+            self.update_plot()
 
     def cleanup(self):
         """Clean up resources."""
