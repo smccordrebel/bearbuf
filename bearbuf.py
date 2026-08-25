@@ -416,7 +416,13 @@ class BearBufUI:
 
         return stock_num
 
-    def update_plot(
+    def log_err(self, msg):
+        """Log an error message"""
+        logger.error(msg)
+        messagebox.showerror("Error", msg)
+        pass
+
+    def analyze_data(
         self,
         portfolio_start: float,
         weekly_expenses_start: float,
@@ -429,9 +435,7 @@ class BearBufUI:
 
             first_stock_price = float(self.stock_value[0])
             if first_stock_price <= 0:
-                err = "Historical starting stock value must be greater than 0."
-                logger.error(err)
-                messagebox.showerror("Error", err)
+                self.log_err("Historical starting stock value must be greater than 0.")
                 return
 
             stock_num_start = portfolio_start / first_stock_price
@@ -441,9 +445,7 @@ class BearBufUI:
             stock_val_list = [float(val) for val in self.stock_value]
 
             if len(week_list) != len(stock_val_list):
-                err = "Stock date and value lists are not the same length"
-                logger.error(err)
-                messagebox.showerror("Error", err)
+                self.log_err("Stock date and value lists are not the same length")
                 return
 
             weekly_expense_val = weekly_expenses_start
@@ -456,9 +458,7 @@ class BearBufUI:
 
             for week in week_list[1:]:
                 if stock_val_list[week] <= 0:
-                    err = f"Historical stock value at week {week} must be greater than 0."
-                    logger.error(err)
-                    messagebox.showerror("Error", err)
+                    self.log_err(f"Historical stock value at week {week} must be greater than 0.")
                     return
 
                 """
@@ -485,10 +485,7 @@ class BearBufUI:
                 remaining_stock_num -= expense_stock_num
 
                 if remaining_stock_num < 0:
-                    err = f"You started spending on {self.stock_date[0]}. "
-                    err += f"You broke on {self.stock_date[week]} :("
-                    logger.error(err)
-                    messagebox.showerror("Error", err)
+                    self.log_err(f"You started spending on {self.stock_date[0]}. You broke on {self.stock_date[week]} :(")
                     return
 
                 weekly_port_val = remaining_stock_num * stock_val_list[week]
@@ -497,12 +494,11 @@ class BearBufUI:
                 weekly_expense_val += weekly_expense_val * weekly_inflation_rate
 
             if len(port_val_list) != len(week_list):
-                err = (
+                self.log_err((
+                    f"Lists must be the same length: "
                     f"port val list length: {len(port_val_list)}, "
                     f"week list length: {len(week_list)}"
-                )
-                logger.error(err)
-                messagebox.showerror("Error", err)
+                ))
                 return
 
             title = (
@@ -530,9 +526,7 @@ class BearBufUI:
             self.stock_value.clear()
 
         except Exception:
-            str = "Unexpected plot update failure"
-            logger.exception(str)
-            messagebox.showerror("Error", str)
+            self.log_err("Unexpected plot update failure")
 
     def ui_var_disable(self, ui_var):
         ui_var.config(state=tk.DISABLED)
@@ -563,12 +557,10 @@ class BearBufUI:
 
         except Exception:
             self.history_clear()
-            err = (
+            self.log_err((
                 f"Error when reading historical data from {HISTORICAL_FILENAME}. "
                 "Verify the file exists and try again."
-            )
-            logger.exception(err)
-            messagebox.showerror("Error", err)
+            ))
 
     def on_calculator_run(self):
         """Run the calculator and display results."""
@@ -581,8 +573,7 @@ class BearBufUI:
                 bear_calm_amount
             ) = self.validate_inputs()
         except ValueError as exc:
-            logger.error(str(exc))
-            messagebox.showerror("Input Error", str(exc))
+            self.log_err(str(exc))
             return
 
         self.historical_data_read()
@@ -593,7 +584,7 @@ class BearBufUI:
         # annual_interest_rate parsed and validated for future use
         _ = annual_interest_rate
 
-        self.update_plot(
+        self.analyze_data(
             portfolio_start=portfolio_start,
             weekly_expenses_start=weekly_expenses,
             annual_inflation_rate=annual_inflation_rate,
