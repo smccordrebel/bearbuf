@@ -390,7 +390,7 @@ class BearBufUI:
         weekly_inflation_rate = (1 + annual) ** (1 / 52) - 1
         return weekly_inflation_rate
 
-    def weekly_expense_stock_calc(self, expenses, stock_price, bear_start, bear_calm_amount):
+    def weekly_expense_stock_calc(self, expenses, stock_price, bear_start, bear_calm_fund):
         """
         Determine how many stocks need to be sold to cover expenses. Utilize
         the bear calming savings if in a bear market.
@@ -403,16 +403,16 @@ class BearBufUI:
             return exps / stock_price
 
          # if it is a bear market, try and use bear calming $$
-        if bear_calm_amount >= exps:
+        if bear_calm_fund >= exps:
             # no stocks are needed to pay expenses
-            bear_calm_amount -= exps
+            bear_calm_fund -= exps
             return 0
         
-        elif bear_calm_amount > 0:
+        elif bear_calm_fund > 0:
             # use the remaining bear calming $$ and sell stocks
             # for the rest
-            exps -= bear_calm_amount
-            bear_calm_amount = 0
+            exps -= bear_calm_fund
+            bear_calm_fund = 0
             return exps / stock_price
 
         else:
@@ -437,12 +437,10 @@ class BearBufUI:
         """
         BEAR_MARKET_LOOK_BACK_WEEKS=10
 
-        # initialize the bear start list to False
+        # initialize the bear start list to all False
         bear_start_list[:] = [False] * len(bear_start_list)
 
-        if len(stock_val_list) < BEAR_MARKET_LOOK_BACK_WEEKS:
-            return
-        
+        bear_num = 0
         start = 0
         end = start + BEAR_MARKET_LOOK_BACK_WEEKS
         while(end < len(stock_val_list)):
@@ -466,6 +464,7 @@ class BearBufUI:
                 if (stock_val_list[index] <= drop_val):
                     bear_start_list[index] = True
                     bear_found = True
+                    bear_num += 1
                     start = index + 1
                     end = start + BEAR_MARKET_LOOK_BACK_WEEKS
                     break
@@ -474,10 +473,12 @@ class BearBufUI:
                 start += 1
                 end = start + BEAR_MARKET_LOOK_BACK_WEEKS
 
+        return bear_num
+
     def analyze_historical_data(
         self,
         portfolio_start: float,
-        weekly_expenses_start: float,
+        weekly_expense_start: float,
         annual_inflation_rate: float,
         bear_calm_weeks: float
     ):
@@ -498,15 +499,24 @@ class BearBufUI:
                 self.log_err("Stock date and value lists are not the same length")
                 return
 
-            # analyze the data for bear markets
-            bear_start_list = [False] * len(stock_val_list)
-            self.bear_start_analyze(stock_val_list, bear_start_list)
-
-            weekly_expense_val = weekly_expenses_start
+            # initialize starting values
+            weekly_expense_val = weekly_expense_start
             weekly_port_val = port_val_start
             remaining_stock_num = stock_num_start
             weekly_inflation_rate = self.inflation_weekly_calc(annual_inflation_rate)
-            bear_calm_amount = self.bear_calm_calc(bear_calm_weeks, weekly_expenses_start)
+            bear_calm_fund = self.bear_calm_calc(bear_calm_weeks, weekly_expense_start)
+
+            self.log_msg(f"Historical data range: {self.stock_date[0]} to {self.stock_date[-1]}")
+            self.log_msg(f"Portfolio start value: {port_val_start}")
+            self.log_msg(f"Annual inflation rate: {annual_inflation_rate}")
+            self.log_msg(f"Weekly inflation rate: {weekly_inflation_rate:.6f}")
+            self.log_msg(f"Weekly expense start: {weekly_expense_start:.2f}")
+
+            # analyze the data for bear markets
+            bear_start_list = [False] * len(stock_val_list)
+            bear_num = self.bear_start_analyze(stock_val_list, bear_start_list)
+            self.log_msg(f"Bear start num: {bear_num}")
+            self.log_msg(f"Bear calm fund: {bear_calm_fund}")
 
             # for every week in the history, determine how many stocks
             # need to be sold for expenses
@@ -519,23 +529,23 @@ class BearBufUI:
                     return
 
                 # if a bear start is detected, expenses are paid from
-                # the bear calm bucket until it is depleted
+                # the bear calm fund until it is depleted
                 if not bear_active:
                     bear_active = bear_start_list[week]
 
-                    # @test 
+                    # keep track of the bear markets
                     if bear_active:
                         bear_starts += 1
                 else:
-                    if bear_calm_amount <= 0:
+                    if bear_calm_fund <= 0:
                         bear_active = False
-                        # refresh the bear calm amount if available
-                        bear_calm_amount = self.bear_calm_calc(bear_calm_weeks, weekly_expenses_start)
+                        # refresh the bear calm fund if available
+                        bear_calm_fund = self.bear_calm_calc(bear_calm_weeks, weekly_expense_start)
 
                 expense_stock_num = self.weekly_expense_stock_calc(weekly_expense_val, 
                                                                    stock_val_list[week], 
                                                                    bear_active,
-                                                                   bear_calm_amount)
+                                                                   bear_calm_fund)
                 remaining_stock_num -= expense_stock_num
 
                 if remaining_stock_num < 0:
@@ -560,8 +570,8 @@ class BearBufUI:
             x_label = f"Weeks from {self.stock_date[0]} to {self.stock_date[-1]}"
             self.display_data(x_label, week_list, port_val_weekly_list)
 
-            # log the results of the analysis
-            self.log_results()
+            self.log_msg(f"Weekly expense end: {weekly_expense_val:.2f}")
+            self.log_msg(f"Portfolio end value: {port_val_weekly_list[-1]:.2f}\n\n")
 
             self.history_clear()
 
@@ -650,7 +660,7 @@ class BearBufUI:
 
         self.analyze_historical_data(
             portfolio_start=portfolio_start,
-            weekly_expenses_start=weekly_expenses,
+            weekly_expense_start=weekly_expenses,
             annual_inflation_rate=annual_inflation_rate,
             bear_calm_weeks=bear_calm_weeks
         )
