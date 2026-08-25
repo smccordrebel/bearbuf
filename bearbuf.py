@@ -390,11 +390,8 @@ class BearBufUI:
         weekly_inflation_rate = (1 + annual) ** (1 / 52) - 1
         return weekly_inflation_rate
 
-    def expense_stock_calc(self, expense, stock_price):
+    def expense_stock_calc(self, expenses, stock_price, bear_start, bear_calm_amount):
         """
-        analyze for bear, 20% down from 10 week highs until what? 
-        Or just spend the entire bear calming and don't worry about it
-
         if bear_start[week]:
             if bear_calm == 0:
                 expense_stock_num = expense_val / stock_val
@@ -410,26 +407,79 @@ class BearBufUI:
             expense_stock_num = expense_val / stock_val
 
         """
-        stock_num = 0
-        if float(self.bear_calm_amount_val.get()) == 0.0:
-            stock_num = expense / stock_price
+        exps = expenses
 
-        return stock_num
+        if not bear_start:
+            return exps / stock_price
+
+         # if it is a bear market, try and use bear calming $$
+        if bear_calm_amount >= exps:
+            # no stocks are needed to pay expenses
+            bear_calm_amount -= exps
+            return 0
+        
+        elif bear_calm_amount > 0:
+            exps -= bear_calm_amount
+            bear_calm_amount = 0
+            return exps / stock_price
+
+        else:
+            return exps / stock_price
+
 
     def log_err(self, msg):
         """Log an error message"""
         logger.error(msg)
         messagebox.showerror("Error", msg)
-        pass
 
-    def analyze_data(
+    def log_msg(self, msg):
+        """Log a message"""
+        logger.info(msg)
+
+    def bear_start_analyze(self, stock_val_list, bear_start_list):
+        """
+        Analyze the stock prices and detect a bear market start:
+            20% drop in price from recent 10 week highs.
+
+        """
+        BEAR_MARKET_LOOK_BACK_WEEKS=10
+
+        # initialize the bear start list to False
+        bear_start_list[:] = [False] * len(bear_start_list)
+
+        if len(stock_val_list) < BEAR_MARKET_LOOK_BACK_WEEKS:
+            return
+        
+        start = 0
+        end = start + BEAR_MARKET_LOOK_BACK_WEEKS
+        while(end < len(stock_val_list)):
+
+            # find the high stock price in the look back period
+            high_val = 0.0
+            high_index = start
+            for index in range(start, end):
+                if (stock_val_list[index] > high_val):
+                    high_val = stock_val_list[index]
+                    high_index = index
+
+            # compare stock values to this high price and detect a 20% drop
+            if high_val > 0.0:
+                drop_val = high_val - (high_val * 0.20)
+                for index in range(high_index, end):
+                    if (stock_val_list[index] <= drop_val):
+                        bear_start_list[index] = True
+
+            start += 1
+            end += 1
+
+    def analyze_historical_data(
         self,
         portfolio_start: float,
         weekly_expenses_start: float,
         annual_inflation_rate: float,
         bear_calm_amount: float
     ):
-        """Calculate and display the portfolio data over time"""
+        """Anaylze the portfolio and display the data over time"""
         try:
             x_label = f"Weeks from {self.stock_date[0]} to {self.stock_date[-1]}"
 
@@ -448,6 +498,10 @@ class BearBufUI:
                 self.log_err("Stock date and value lists are not the same length")
                 return
 
+            # analyze the data for bear markets
+            bear_start_list = [False] * len(stock_val_list)
+            self.bear_start_analyze(stock_val_list, bear_start_list)
+
             weekly_expense_val = weekly_expenses_start
             weekly_port_val = port_val_start
             remaining_stock_num = stock_num_start
@@ -461,27 +515,10 @@ class BearBufUI:
                     self.log_err(f"Historical stock value at week {week} must be greater than 0.")
                     return
 
-                """
-                analyze for bear, 20% down from 10 week highs until what? 
-                Or just spend the entire bear calming and don't worry about it
-
-                if bear_start[week]:
-                    if bear_calm == 0:
-                        expense_stock_num = expense_val / stock_val
-                        return
-
-                    if expense_val <= bear_calm
-                        expense_stock_num = 0
-                        bear_calm -= expense_val
-                    else
-                        expense_val -= bear_calm
-                        expense_stock_num = expense_val / stock_val
-                else
-                    expense_stock_num = expense_val / stock_val
-
-                """
-                #expense_stock_num = weekly_expense_val / stock_val_list[week]
-                expense_stock_num = self.expense_stock_calc(weekly_expense_val, stock_val_list[week])
+                expense_stock_num = self.expense_stock_calc(weekly_expense_val, 
+                                                            stock_val_list[week], 
+                                                            bear_start_list[week],
+                                                            bear_calm_amount)
                 remaining_stock_num -= expense_stock_num
 
                 if remaining_stock_num < 0:
@@ -525,8 +562,8 @@ class BearBufUI:
             self.stock_date.clear()
             self.stock_value.clear()
 
-        except Exception:
-            self.log_err("Unexpected plot update failure")
+        except Exception as e:
+            self.log_err(f"{type(e).__name__}: {e}")
 
     def ui_var_disable(self, ui_var):
         ui_var.config(state=tk.DISABLED)
@@ -584,7 +621,7 @@ class BearBufUI:
         # annual_interest_rate parsed and validated for future use
         _ = annual_interest_rate
 
-        self.analyze_data(
+        self.analyze_historical_data(
             portfolio_start=portfolio_start,
             weekly_expenses_start=weekly_expenses,
             annual_inflation_rate=annual_inflation_rate,
