@@ -159,7 +159,7 @@ class BearBufUI:
         ttk.Label(inputs_frame, text="Annual Interest Rate %").grid(
             row=3, column=0, sticky="w", padx=(0, 10), pady=4
         )
-        ttk.Label(inputs_frame, text="Bear Calm Amount $").grid(
+        ttk.Label(inputs_frame, text="Bear Calm Weeks").grid(
             row=4, column=0, sticky="w", padx=(0, 10), pady=4
         )
 
@@ -167,7 +167,7 @@ class BearBufUI:
         self.weekly_expenses_val = tk.StringVar(value="1600")
         self.annual_inflation_rate_val = tk.StringVar(value="3")
         self.annual_interest_rate_val = tk.StringVar(value="4")
-        self.bear_calm_amount_val = tk.StringVar(value="0")
+        self.bear_calm_weeks_val = tk.StringVar(value="0")
 
         vcmd_int = (self.root.register(self.validate_integer_entry), "%P")
         vcmd_float = (self.root.register(self.validate_float_entry), "%P")
@@ -205,9 +205,9 @@ class BearBufUI:
             validatecommand=vcmd_float
         )
 
-        self.bear_calm_amount_entry = ttk.Entry(
+        self.bear_calm_weeks_entry = ttk.Entry(
             inputs_frame,
-            textvariable=self.bear_calm_amount_val,
+            textvariable=self.bear_calm_weeks_val,
             width=14,
             justify=tk.RIGHT,
             validate="key",
@@ -218,7 +218,7 @@ class BearBufUI:
         self.weekly_expenses_entry.grid(row=1, column=1, sticky="ew", pady=4)
         self.annual_inflation_rate_entry.grid(row=2, column=1, sticky="ew", pady=4)
         self.annual_interest_rate_entry.grid(row=3, column=1, sticky="ew", pady=4)
-        self.bear_calm_amount_entry.grid(row=4, column=1, sticky="ew", pady=4)
+        self.bear_calm_weeks_entry.grid(row=4, column=1, sticky="ew", pady=4)
 
         calculator_run_frame = ttk.Frame(calculator_frame)
         calculator_run_frame.grid(row=1, column=0, sticky="ew", pady=4)
@@ -370,8 +370,8 @@ class BearBufUI:
             "Annual Interest Rate",
             allow_zero=True
         )
-        bear_calm_amount = self.parse_positive_number(
-            self.bear_calm_amount_val.get(),
+        bear_calm_weeks = self.parse_positive_number(
+            self.bear_calm_weeks_val.get(),
             "Bear Calm Amount",
             allow_zero=True
         )
@@ -381,7 +381,7 @@ class BearBufUI:
             weekly_expenses,
             annual_inflation_rate,
             annual_interest_rate,
-            bear_calm_amount
+            bear_calm_weeks
         )
 
     def inflation_weekly_calc(self, annual_inflation_rate: float) -> float:
@@ -390,7 +390,7 @@ class BearBufUI:
         weekly_inflation_rate = (1 + annual) ** (1 / 52) - 1
         return weekly_inflation_rate
 
-    def expense_stock_calc(self, expenses, stock_price, bear_start, bear_calm_amount):
+    def weekly_expense_stock_calc(self, expenses, stock_price, bear_start, bear_calm_amount):
         """
         Determine how many stocks need to be sold to cover expenses. Utilize
         the bear calming savings if in a bear market.
@@ -455,22 +455,31 @@ class BearBufUI:
                     high_val = stock_val_list[index]
                     high_index = index
 
-            # compare stock values to this high price and detect a 20% drop
-            if high_val > 0.0:
-                drop_val = high_val - (high_val * 0.20)
-                for index in range(high_index, end):
-                    if (stock_val_list[index] <= drop_val):
-                        bear_start_list[index] = True
+            if high_val <= 0.0:
+                self.log_err("Stock price <= 0!")
+                return
 
-            start += 1
-            end += 1
+            # compare stock values to the high price and detect a 20% drop
+            bear_found = False
+            drop_val = high_val - (high_val * 0.20)
+            for index in range(high_index, end):
+                if (stock_val_list[index] <= drop_val):
+                    bear_start_list[index] = True
+                    bear_found = True
+                    start = index + 1
+                    end = start + BEAR_MARKET_LOOK_BACK_WEEKS
+                    break
+
+            if not bear_found:
+                start += 1
+                end = start + BEAR_MARKET_LOOK_BACK_WEEKS
 
     def analyze_historical_data(
         self,
         portfolio_start: float,
         weekly_expenses_start: float,
         annual_inflation_rate: float,
-        bear_calm_amount: float
+        bear_calm_weeks: float
     ):
         """Anaylze the portfolio and expenses over time and plot the data"""
         try:
@@ -497,19 +506,36 @@ class BearBufUI:
             weekly_port_val = port_val_start
             remaining_stock_num = stock_num_start
             weekly_inflation_rate = self.inflation_weekly_calc(annual_inflation_rate)
+            bear_calm_amount = self.bear_calm_calc(bear_calm_weeks, weekly_expenses_start)
 
             # for every week in the history, determine how many stocks
             # need to be sold for expenses
             port_val_weekly_list = [weekly_port_val]
+            bear_active = False
+            bear_starts = 0
             for week in week_list[1:]:
                 if stock_val_list[week] <= 0:
                     self.log_err(f"Historical stock value at week {week} must be greater than 0.")
                     return
 
-                expense_stock_num = self.expense_stock_calc(weekly_expense_val, 
-                                                            stock_val_list[week], 
-                                                            bear_start_list[week],
-                                                            bear_calm_amount)
+                # if a bear start is detected, expenses are paid from
+                # the bear calm bucket until it is depleted
+                if not bear_active:
+                    bear_active = bear_start_list[week]
+
+                    # @test 
+                    if bear_active:
+                        bear_starts += 1
+                else:
+                    if bear_calm_amount <= 0:
+                        bear_active = False
+                        # refresh the bear calm amount if available
+                        bear_calm_amount = self.bear_calm_calc(bear_calm_weeks, weekly_expenses_start)
+
+                expense_stock_num = self.weekly_expense_stock_calc(weekly_expense_val, 
+                                                                   stock_val_list[week], 
+                                                                   bear_active,
+                                                                   bear_calm_amount)
                 remaining_stock_num -= expense_stock_num
 
                 if remaining_stock_num < 0:
@@ -530,14 +556,24 @@ class BearBufUI:
                 ))
                 return
 
+            # display the data on the plot
             x_label = f"Weeks from {self.stock_date[0]} to {self.stock_date[-1]}"
             self.display_data(x_label, week_list, port_val_weekly_list)
 
             # log the results of the analysis
+            self.log_results()
+
             self.history_clear()
 
         except Exception as e:
             self.log_err(f"{type(e).__name__}: {e}")
+
+    def bear_calm_calc(self, weeks, expenses):
+        """Determine the bear calm amount"""
+        return weeks * expenses
+
+    def log_results(self):
+        pass
 
     def display_data(self, x_label, week_list, port_val_weekly_list):
         """Display the portfolio analysis data on the graph"""
@@ -598,7 +634,7 @@ class BearBufUI:
                 weekly_expenses,
                 annual_inflation_rate,
                 annual_interest_rate,
-                bear_calm_amount
+                bear_calm_weeks
             ) = self.validate_inputs()
         except ValueError as exc:
             self.log_err(str(exc))
@@ -616,7 +652,7 @@ class BearBufUI:
             portfolio_start=portfolio_start,
             weekly_expenses_start=weekly_expenses,
             annual_inflation_rate=annual_inflation_rate,
-            bear_calm_amount=bear_calm_amount
+            bear_calm_weeks=bear_calm_weeks
         )
 
     def cleanup(self):
