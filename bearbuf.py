@@ -392,20 +392,10 @@ class BearBufUI:
 
     def expense_stock_calc(self, expenses, stock_price, bear_start, bear_calm_amount):
         """
-        if bear_start[week]:
-            if bear_calm == 0:
-                expense_stock_num = expense_val / stock_val
-                return
+        Determine how many stocks need to be sold to cover expenses. Utilize
+        the bear calming savings if in a bear market.
 
-            if expense_val <= bear_calm
-                expense_stock_num = 0
-                bear_calm -= expense_val
-            else
-                expense_val -= bear_calm
-                expense_stock_num = expense_val / stock_val
-        else
-            expense_stock_num = expense_val / stock_val
-
+        @return the number of stocks that need to be sold
         """
         exps = expenses
 
@@ -419,11 +409,14 @@ class BearBufUI:
             return 0
         
         elif bear_calm_amount > 0:
+            # use the remaining bear calming $$ and sell stocks
+            # for the rest
             exps -= bear_calm_amount
             bear_calm_amount = 0
             return exps / stock_price
 
         else:
+            # no bear calming $$ left, sell stocks
             return exps / stock_price
 
 
@@ -479,10 +472,8 @@ class BearBufUI:
         annual_inflation_rate: float,
         bear_calm_amount: float
     ):
-        """Anaylze the portfolio and display the data over time"""
+        """Anaylze the portfolio and expenses over time and plot the data"""
         try:
-            x_label = f"Weeks from {self.stock_date[0]} to {self.stock_date[-1]}"
-
             first_stock_price = float(self.stock_value[0])
             if first_stock_price <= 0:
                 self.log_err("Historical starting stock value must be greater than 0.")
@@ -505,11 +496,11 @@ class BearBufUI:
             weekly_expense_val = weekly_expenses_start
             weekly_port_val = port_val_start
             remaining_stock_num = stock_num_start
-
-            port_val_list = [weekly_port_val]
-
             weekly_inflation_rate = self.inflation_weekly_calc(annual_inflation_rate)
 
+            # for every week in the history, determine how many stocks
+            # need to be sold for expenses
+            port_val_weekly_list = [weekly_port_val]
             for week in week_list[1:]:
                 if stock_val_list[week] <= 0:
                     self.log_err(f"Historical stock value at week {week} must be greater than 0.")
@@ -522,54 +513,54 @@ class BearBufUI:
                 remaining_stock_num -= expense_stock_num
 
                 if remaining_stock_num < 0:
+                    remaining_stock_num = 0
                     self.log_err(f"You started spending on {self.stock_date[0]}. You broke on {self.stock_date[week]} :(")
                     return
 
                 weekly_port_val = remaining_stock_num * stock_val_list[week]
-                port_val_list.append(weekly_port_val)
+                port_val_weekly_list.append(weekly_port_val)
 
                 weekly_expense_val += weekly_expense_val * weekly_inflation_rate
 
-            if len(port_val_list) != len(week_list):
+            if len(port_val_weekly_list) != len(week_list):
                 self.log_err((
                     f"Lists must be the same length: "
-                    f"port val list length: {len(port_val_list)}, "
+                    f"port val list length: {len(port_val_weekly_list)}, "
                     f"week list length: {len(week_list)}"
                 ))
                 return
 
-            title = (
-                f"Portfolio start: {port_val_start:.2f} "
-                f"end: {port_val_list[-1]:.2f}"
-            )
+            x_label = f"Weeks from {self.stock_date[0]} to {self.stock_date[-1]}"
+            self.display_data(x_label, week_list, port_val_weekly_list)
 
-            self.ax_portfolio.clear()
-            self.ax_portfolio.plot(
-                week_list,
-                port_val_list,
-                linestyle="-",
-                linewidth=1,
-                color="#1f77b4"
-            )
-            self.ax_portfolio.set_xlabel(x_label)
-            self.ax_portfolio.set_ylabel(PLOT_Y_LABEL)
-            self.ax_portfolio.set_title(title)
-            self.ax_portfolio.grid(True, alpha=0.3)
-
-            self.figure_portfolio.tight_layout()
-            self.canvas_portfolio.draw_idle()
-
-            self.stock_date.clear()
-            self.stock_value.clear()
+            # log the results of the analysis
+            self.history_clear()
 
         except Exception as e:
             self.log_err(f"{type(e).__name__}: {e}")
 
-    def ui_var_disable(self, ui_var):
-        ui_var.config(state=tk.DISABLED)
+    def display_data(self, x_label, week_list, port_val_weekly_list):
+        """Display the portfolio analysis data on the graph"""
+        title = (
+            f"Portfolio start: {port_val_weekly_list[0]:.2f} "
+            f"end: {port_val_weekly_list[-1]:.2f}"
+        )
 
-    def ui_var_enable(self, ui_var):
-        ui_var.config(state=tk.NORMAL)
+        self.ax_portfolio.clear()
+        self.ax_portfolio.plot(
+            week_list,
+            port_val_weekly_list,
+            linestyle="-",
+            linewidth=1,
+            color="#1f77b4"
+        )
+        self.ax_portfolio.set_xlabel(x_label)
+        self.ax_portfolio.set_ylabel(PLOT_Y_LABEL)
+        self.ax_portfolio.set_title(title)
+        self.ax_portfolio.grid(True, alpha=0.3)
+
+        self.figure_portfolio.tight_layout()
+        self.canvas_portfolio.draw_idle()
 
     def disconnect_cleanup(self):
         """Cleanup on a disconnection event"""
