@@ -678,10 +678,6 @@ class BearBufUI:
         self.figure_portfolio.tight_layout()
         self.canvas_portfolio.draw_idle()
 
-    def disconnect_cleanup(self):
-        """Cleanup on a disconnection event"""
-        pass
-
     def history_clear(self):
         """Clear history"""
         self.stock_date.clear()
@@ -689,9 +685,6 @@ class BearBufUI:
 
     def historical_data_read(self):
         """Read the historical data"""
-
-        # @todo validate the data, make sure it is sequential weeks
-        # and that the stock values can be converted to floats
         try:
             self.history_clear()
 
@@ -741,11 +734,6 @@ class BearBufUI:
             annual_interest_rate=annual_interest_rate,
             bear_calm_weeks=bear_calm_weeks
         )
-
-    def cleanup(self):
-        """Clean up resources."""
-        self.disconnect_cleanup()
-
 
 def main():
     """Main entry point for the application."""
