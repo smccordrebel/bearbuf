@@ -12,7 +12,7 @@ import logging
 import tkinter as tk
 from datetime import datetime
 from tkinter import messagebox, ttk
-
+from dataclasses import dataclass
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
@@ -43,6 +43,12 @@ PLOT_TITLE_FLOW = "Portfolio"
 
 HISTORICAL_FILENAME = "VTSAX_history.csv"
 
+@dataclass
+class WeeklyExpenses:
+    expenses: float
+    stock_price: float
+    bear_active: bool
+    bear_calm_fund: float
 
 # ============================================================================
 # Bear Buf UI Application
@@ -390,34 +396,33 @@ class BearBufUI:
         weekly_inflation_rate = (1 + annual) ** (1 / 52) - 1
         return weekly_inflation_rate
 
-    def weekly_expense_stock_calc(self, expenses, stock_price, bear_active, bear_calm_fund):
+    def weekly_expense_stock_calc(self, weekly:WeeklyExpenses):
         """
         Determine how many stocks need to be sold to cover expenses. Utilize
-        the bear calming savings if in a bear market.
+        the bear calming funds if in a bear market.
 
         @return the number of stocks that need to be sold
         """
-        exps = expenses
+        exps = weekly.expenses
 
-        if not bear_active:
-            return exps / stock_price
+        if not weekly.bear_active:
+            return exps / weekly.stock_price
 
          # if it is a bear market, try and use bear calming $$
-        if bear_calm_fund >= exps:
+        if weekly.bear_calm_fund >= exps:
             # no stocks are needed to pay expenses
-            bear_calm_fund = bear_calm_fund - exps
+            weekly.bear_calm_fund -= exps
             return 0
         
-        elif bear_calm_fund > 0:
-            # use the remaining bear calming $$ and sell stocks
-            # for the rest
-            exps -= bear_calm_fund
-            bear_calm_fund = 0
-            return exps / stock_price
+        elif weekly.bear_calm_fund > 0:
+            # use the remaining bear calming $$ and sell stocks for the rest
+            exps -= weekly.bear_calm_fund
+            weekly.bear_calm_fund = 0
+            return exps / weekly.stock_price
 
         else:
             # no bear calming $$ left, sell stocks
-            return exps / stock_price
+            return exps / weekly.stock_price
 
 
     def log_err(self, msg):
@@ -541,11 +546,14 @@ class BearBufUI:
                         # refresh the bear calm fund if available
                         bear_calm_fund = self.bear_calm_calc(bear_calm_weeks, weekly_expense_start)
 
-                expense_stock_num = self.weekly_expense_stock_calc(expenses=weekly_expense_val, 
-                                                                   stock_price=stock_val_list[week], 
-                                                                   bear_active=bear_active,
-                                                                   bear_calm_fund=bear_calm_fund)
+                weekly = WeeklyExpenses(expenses=weekly_expense_val,
+                                    stock_price=stock_val_list[week],
+                                    bear_active=bear_active,
+                                    bear_calm_fund=bear_calm_fund)
+                
+                expense_stock_num = self.weekly_expense_stock_calc(weekly)
                 remaining_stock_num -= expense_stock_num
+                bear_calm_fund = weekly.bear_calm_fund
 
                 if remaining_stock_num < 0:
                     remaining_stock_num = 0
