@@ -437,7 +437,7 @@ class BearBufUI:
     def bear_start_analyze(self, stock_val_list, bear_start_list):
         """
         Analyze the stock prices and detect a bear market start:
-            20% drop in price from recent 10 week highs.
+            - 20% drop in price from recent 10 week highs.
 
         """
         BEAR_MARKET_LOOK_BACK_WEEKS=10
@@ -513,11 +513,10 @@ class BearBufUI:
             self.log_msg(f"Historical data range: {self.stock_date[0]} to {self.stock_date[-1]}")
             self.log_msg(f"Portfolio start value: {port_val_start}")
             self.log_msg(f"Annual inflation rate: {annual_inflation_rate}")
-            self.log_msg(f"Weekly inflation rate: {weekly_inflation_rate:.6f}")
+            self.log_msg(f"Weekly inflation rate: {weekly_inflation_rate:.8f}")
             self.log_msg(f"Weekly expense start: {weekly_expense_start:.2f}")
 
-            # a single bear calm fund is the starting expenses * number of weeks
-            global bear_calm_fund
+            # a single bear calm fund is (starting expenses * number of weeks)
             bear_calm_fund = self.bear_calm_calc(bear_calm_weeks, weekly_expense_start)
             self.log_msg(f"Bear calm fund: {bear_calm_fund}")
 
@@ -526,10 +525,10 @@ class BearBufUI:
             bear_num = self.bear_start_analyze(stock_val_list, bear_start_list)
             self.log_msg(f"Bear start num: {bear_num}")
 
-            # for every week in the history, determine how many stocks
-            # need to be sold for expenses
+            # for every week, determine how many stocks need to be sold for expenses
             port_val_weekly_list = [weekly_port_val]
             bear_active = False
+            bear_start_dates = []
 
             for week in week_list[1:]:
                 if stock_val_list[week] <= 0:
@@ -540,6 +539,8 @@ class BearBufUI:
                 # the bear calm fund until it is depleted
                 if not bear_active:
                     bear_active = bear_start_list[week]
+                    if bear_active:
+                        bear_start_dates.append(self.stock_date[week])
                 else:
                     if bear_calm_fund <= 0:
                         bear_active = False
@@ -576,6 +577,12 @@ class BearBufUI:
             # display the data on the plot
             x_label = f"Weeks from {self.stock_date[0]} to {self.stock_date[-1]}"
             self.display_data(x_label, week_list, port_val_weekly_list)
+
+            if bear_start_dates != []:
+                self.log_msg(f"Bear start dates: {bear_start_dates}")
+
+            # total bear buf amount
+            self.log_msg(f"Bear Buf total: {bear_num * self.bear_calm_calc(bear_calm_weeks, weekly_expense_start)}")
 
             self.log_msg(f"Weekly expense end: {weekly_expense_val:.2f}")
             self.log_msg(f"Portfolio end value: {port_val_weekly_list[-1]:.2f}\n\n")
