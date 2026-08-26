@@ -703,6 +703,7 @@ class BearBufUI:
                     if len(row) < 2:
                         raise ValueError("Historical data row must have a date and value.")
 
+                    # Validate the stock value before storing the CSV row.
                     float(row[1])
                     self.stock_date.append(row[0])
                     self.stock_value.append(row[1])

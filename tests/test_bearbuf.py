@@ -1,9 +1,8 @@
 import importlib
-import io
 import sys
 import types
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, mock_open, patch
 
 
 def install_gui_stubs():
@@ -241,7 +240,7 @@ class TestHistoricalDataRead(unittest.TestCase):
     def test_historical_data_read_loads_valid_csv(self):
         csv_data = "2024-01-01,100\n2024-01-08,101.5\n"
 
-        with patch("builtins.open", return_value=io.StringIO(csv_data)):
+        with patch("builtins.open", mock_open(read_data=csv_data)):
             self.ui.historical_data_read()
 
         self.assertEqual(self.ui.stock_date, ["2024-01-01", "2024-01-08"])
@@ -259,7 +258,7 @@ class TestHistoricalDataRead(unittest.TestCase):
     def test_historical_data_read_handles_malformed_csv(self):
         csv_data = "2024-01-01,100\n2024-01-08,not-a-number\n"
 
-        with patch("builtins.open", return_value=io.StringIO(csv_data)):
+        with patch("builtins.open", mock_open(read_data=csv_data)):
             self.ui.historical_data_read()
 
         self.assertEqual(self.ui.stock_date, [])
