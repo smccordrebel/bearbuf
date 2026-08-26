@@ -470,10 +470,14 @@ class BearBufUI:
         # initialize the bear start list to all False
         bear_start_list[:] = [False] * len(bear_start_list)
 
+        if any(value <= 0 for value in stock_val_list):
+            self.log_err("Stock price <= 0!")
+            return None
+
         bear_num = 0
         start = 0
-        end = start + BEAR_MARKET_LOOK_BACK_WEEKS
-        while(end < len(stock_val_list)):
+        end = start + BEAR_MARKET_LOOK_BACK_WEEKS + 1
+        while(end <= len(stock_val_list)):
 
             # find the high stock price in the look back period
             high_val = 0.0
@@ -496,12 +500,12 @@ class BearBufUI:
                     bear_found = True
                     bear_num += 1
                     start = index + 1
-                    end = start + BEAR_MARKET_LOOK_BACK_WEEKS
+                    end = start + BEAR_MARKET_LOOK_BACK_WEEKS + 1
                     break
 
             if not bear_found:
                 start += 1
-                end = start + BEAR_MARKET_LOOK_BACK_WEEKS
+                end = start + BEAR_MARKET_LOOK_BACK_WEEKS + 1
 
         return bear_num
 
@@ -694,15 +698,20 @@ class BearBufUI:
             with open(HISTORICAL_FILENAME, newline="", encoding="utf-8") as f:
                 reader = csv.reader(f)
                 for row in reader:
-                    if len(row) >= 2:
-                        self.stock_date.append(row[0])
-                        self.stock_value.append(row[1])
+                    if not row:
+                        continue
+                    if len(row) < 2:
+                        raise ValueError("Historical data row must have a date and value.")
+
+                    float(row[1])
+                    self.stock_date.append(row[0])
+                    self.stock_value.append(row[1])
 
         except Exception:
             self.history_clear()
             self.log_err((
                 f"Error when reading historical data from {HISTORICAL_FILENAME}. "
-                "Verify the file exists and try again."
+                "Verify the file exists and contains valid date/value rows."
             ))
 
     def on_calculator_run(self):
