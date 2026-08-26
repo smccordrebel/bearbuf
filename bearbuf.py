@@ -65,6 +65,7 @@ class BearBufUI:
 
         self.stock_date = []
         self.stock_value = []
+        self.results = {}
 
         self.root.rowconfigure(0, weight=1)
         self.root.columnconfigure(0, weight=1)
@@ -390,17 +391,11 @@ class BearBufUI:
             bear_calm_weeks
         )
 
-    def inflation_weekly_calc(self, annual_inflation_rate: float) -> float:
-        """Calculation the weekly inflation rate"""
-        annual = annual_inflation_rate / 100
-        weekly_inflation_rate = (1 + annual) ** (1 / 52) - 1
-        return weekly_inflation_rate
-
-    def interest_weekly_calc(self, annual_interest_rate: float) -> float:
-            """Calculation the weekly interest rate"""
-            annual = annual_interest_rate / 100
-            weekly_interest_rate = (1 + annual) ** (1 / 52) - 1
-            return weekly_interest_rate
+    def weekly_rate_from_annual(self, annual_rate: float) -> float:
+        """Calculate a weekly rate from an annual rate"""
+        rate = annual_rate / 100
+        weekly_rate = (1 + rate) ** (1 / 52) - 1
+        return weekly_rate
     
     def weekly_expense_stock_calc(self, weekly:WeeklyExpenses):
         """
@@ -439,6 +434,28 @@ class BearBufUI:
     def log_msg(self, msg):
         """Log a message"""
         logger.info(msg)
+
+    def log_results(self):
+        """Log all results of a portfolio analysis"""
+        try:
+            self.log_msg(f"Historical data range: {self.results["date_range"]}")
+            self.log_msg(f"Portfolio start value: {self.results["port_start"]:.2f}")
+            self.log_msg(f"Portfolio end value: {self.results["port_end"]:.2f}")
+            self.log_msg(f"Annual inflation rate: {self.results["inflation_annual"]}")
+            self.log_msg(f"Weekly inflation rate: {self.results["inflation_weekly"]:.8f}")
+            self.log_msg(f"Annual interest rate: {self.results["interest_annual"]}")
+            self.log_msg(f"Weekly interest rate: {self.results["interest_weekly"]:.8f}")
+            self.log_msg(f"Expense start: {self.results["expense_start"]:.2f}")
+            self.log_msg(f"Expense end: {self.results["expense_end"]:.2f}")
+            self.log_msg(f"Bear markets: {self.results["bear_num"]}")
+            self.log_msg(f"Bear market dates: {self.results["bear_dates"]}")
+            self.log_msg(f"Bear calm amount: {self.results["bear_calm"]:.2f}")
+            self.log_msg(f"Bear buf start: {self.results["bb_start"]:.2f}")
+            self.log_msg(f"Bear buf end: {self.results["bb_end"]:.2f}\n\n")
+
+        except Exception as e:
+            self.log_err(f"{type(e).__name__}: {e}")
+                      
 
     def bear_start_analyze(self, stock_val_list, bear_start_list):
         """
@@ -504,6 +521,7 @@ class BearBufUI:
             stock_num_start = portfolio_start / first_stock_price
             port_val_start = stock_num_start * first_stock_price
 
+            # stock dates are every week throughout the range
             week_list = list(range(len(self.stock_date)))
             stock_val_list = [float(val) for val in self.stock_value]
 
@@ -515,24 +533,25 @@ class BearBufUI:
             weekly_expense_val = weekly_expense_start
             weekly_port_val = port_val_start
             remaining_stock_num = stock_num_start
-            weekly_inflation_rate = self.inflation_weekly_calc(annual_inflation_rate)
-            weekly_interest_rate = self.interest_weekly_calc(annual_interest_rate)
+            weekly_inflation_rate = self.weekly_rate_from_annual(annual_inflation_rate)
+            weekly_interest_rate = self.weekly_rate_from_annual(annual_interest_rate)
 
-            self.log_msg(f"Historical data range: {self.stock_date[0]} to {self.stock_date[-1]}")
-            self.log_msg(f"Portfolio start value: {port_val_start}")
-            self.log_msg(f"Annual inflation rate: {annual_inflation_rate}")
-            self.log_msg(f"Weekly inflation rate: {weekly_inflation_rate:.8f}")
-            self.log_msg(f"Weekly interest rate: {weekly_interest_rate:.8f}")
-            self.log_msg(f"Weekly expense start: {weekly_expense_start:.2f}")
+            self.results["date_range"] = f"{self.stock_date[0]} to {self.stock_date[-1]}"
+            self.results["port_start"] = port_val_start
+            self.results["inflation_annual"] = annual_inflation_rate
+            self.results["inflation_weekly"] = weekly_inflation_rate
+            self.results["interest_annual"] = annual_interest_rate
+            self.results["interest_weekly"] = weekly_interest_rate
+            self.results["expense_start"] = weekly_expense_start
 
             # a single bear calm fund is (starting expenses * number of weeks)
             bear_calm_fund = self.bear_calm_calc(bear_calm_weeks, weekly_expense_start)
-            self.log_msg(f"Bear calm fund: {bear_calm_fund}")
+            self.results["bear_calm"] = bear_calm_fund
 
             # analyze the data for bear markets
             bear_start_list = [False] * len(stock_val_list)
             bear_num = self.bear_start_analyze(stock_val_list, bear_start_list)
-            self.log_msg(f"Bear start num: {bear_num}")
+            self.results["bear_num"] = bear_num
 
             # calculate the total bear buf (bear_calm_funds * bear_num)
             bear_buf = bear_num * bear_calm_fund
@@ -576,8 +595,6 @@ class BearBufUI:
 
                 if remaining_stock_num < 0:
                     remaining_stock_num = 0
-                    #self.log_err(f"You started spending on {self.stock_date[0]}. You broke on {self.stock_date[week]} :(")
-                    #break
 
                 weekly_port_val = remaining_stock_num * stock_val_list[week]
                 port_val_weekly_list.append(weekly_port_val)
@@ -596,14 +613,18 @@ class BearBufUI:
             x_label = f"Weeks from {self.stock_date[0]} to {self.stock_date[-1]}"
             self.display_data(x_label, week_list, port_val_weekly_list)
 
+            # log the results of the analysis
             if bear_start_dates != []:
-                self.log_msg(f"Bear start dates: {bear_start_dates}")
+                self.results["bear_dates"] = bear_start_dates
+            else:
+                self.results["bear_dates"] = "None"
 
-            self.log_msg(f"Bear Buf start value: {bear_buf:.2f}")
-            self.log_msg(f"Bear Buf end value: {bear_calm_fund_total:.2f}")
+            self.results["bb_start"] = bear_buf
+            self.results["bb_end"] = bear_calm_fund_total
+            self.results["expense_end"] = weekly_expense_val
+            self.results["port_end"] = port_val_weekly_list[-1]
 
-            self.log_msg(f"Weekly expense end: {weekly_expense_val:.2f}")
-            self.log_msg(f"Portfolio end value: {port_val_weekly_list[-1]:.2f}\n\n")
+            self.log_results()
 
             self.history_clear()
 
@@ -613,9 +634,6 @@ class BearBufUI:
     def bear_calm_calc(self, weeks, expenses):
         """Determine the bear calm amount"""
         return weeks * expenses
-
-    def log_results(self):
-        pass
 
     def display_data(self, x_label, week_list, port_val_weekly_list):
         """Display the portfolio analysis data on the graph"""
