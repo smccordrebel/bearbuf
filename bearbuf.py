@@ -503,6 +503,22 @@ class BearBufUI:
 
         return bear_num
 
+    def stock_lists_get(self):
+        # create lists of the weekly dates and weekly stock prices
+        # that were read from the input file
+        week_list = list(range(len(self.stock_date)))
+        stock_val_list = [float(val) for val in self.stock_value]
+
+        if any(value <= 0 for value in stock_val_list):
+            self.log_err("Historical stock values must be greater than 0.")
+            return [], []
+
+        if len(week_list) != len(stock_val_list):
+            self.log_err("Stock date and stock value lists are not the same length")
+            return [], []
+
+        return week_list, stock_val_list
+
     def analyze_historical_data(
         self,
         portfolio_start: float,
@@ -511,19 +527,18 @@ class BearBufUI:
         annual_interest_rate: float,
         bear_calm_weeks: float
     ):
-        """Anaylze the portfolio and expenses over time and plot the data"""
+        """
+        Calculate a portfolio value over time, by evaluating every week and
+        subtracting expenses either through selling stocks or if in a bear market
+        using bear calm funds.
+        """
         try:
-            # create lists of the weekly dates and stock prices
-            week_list = list(range(len(self.stock_date)))
-            stock_val_list = [float(val) for val in self.stock_value]
-            if any(value <= 0 for value in stock_val_list):
-                self.log_err("Historical stock values must be greater than 0.")
-                return
+            # create lists of the weekly dates and weekly stock prices
+            week_list, stock_val_list = self.stock_lists_get()
 
-            if len(week_list) != len(stock_val_list):
-                self.log_err("Stock date and stock value lists are not the same length")
-                return
-            
+            if not week_list or not stock_val_list:
+                self.log_err("Invalid input data")
+
             stock_num_start = portfolio_start / stock_val_list[0]
             port_val_start = stock_num_start * stock_val_list[0]
 
@@ -563,10 +578,6 @@ class BearBufUI:
             bear_num_remaining = bear_num_start
 
             for week in week_list[1:]:
-                if stock_val_list[week] <= 0:
-                    self.log_err(f"Historical stock value at week {week} must be greater than 0.")
-                    return
-
                 # if a bear start is detected, expenses are paid from
                 # the bear calm fund until it is depleted
                 if not bear_active:
@@ -588,7 +599,7 @@ class BearBufUI:
                 remaining_stock_num -= expense_stock_num
 
                 if bear_calm_fund > weekly.bear_calm_fund:
-                    bear_buf -= bear_calm_fund - weekly.bear_calm_fund
+                    bear_buf -= (bear_calm_fund - weekly.bear_calm_fund)
 
                 bear_calm_fund = weekly.bear_calm_fund
                 bear_buf += bear_buf * weekly_interest_rate 
