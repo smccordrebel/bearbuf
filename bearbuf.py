@@ -396,6 +396,12 @@ class BearBufUI:
         weekly_inflation_rate = (1 + annual) ** (1 / 52) - 1
         return weekly_inflation_rate
 
+    def interest_weekly_calc(self, annual_interest_rate: float) -> float:
+            """Calculation the weekly interest rate"""
+            annual = annual_interest_rate / 100
+            weekly_interest_rate = (1 + annual) ** (1 / 52) - 1
+            return weekly_interest_rate
+    
     def weekly_expense_stock_calc(self, weekly:WeeklyExpenses):
         """
         Determine how many stocks need to be sold to cover expenses. Utilize
@@ -485,6 +491,7 @@ class BearBufUI:
         portfolio_start: float,
         weekly_expense_start: float,
         annual_inflation_rate: float,
+        annual_interest_rate: float,
         bear_calm_weeks: float
     ):
         """Anaylze the portfolio and expenses over time and plot the data"""
@@ -509,11 +516,13 @@ class BearBufUI:
             weekly_port_val = port_val_start
             remaining_stock_num = stock_num_start
             weekly_inflation_rate = self.inflation_weekly_calc(annual_inflation_rate)
+            weekly_interest_rate = self.interest_weekly_calc(annual_interest_rate)
 
             self.log_msg(f"Historical data range: {self.stock_date[0]} to {self.stock_date[-1]}")
             self.log_msg(f"Portfolio start value: {port_val_start}")
             self.log_msg(f"Annual inflation rate: {annual_inflation_rate}")
             self.log_msg(f"Weekly inflation rate: {weekly_inflation_rate:.8f}")
+            self.log_msg(f"Weekly interest rate: {weekly_interest_rate:.8f}")
             self.log_msg(f"Weekly expense start: {weekly_expense_start:.2f}")
 
             # a single bear calm fund is (starting expenses * number of weeks)
@@ -524,6 +533,10 @@ class BearBufUI:
             bear_start_list = [False] * len(stock_val_list)
             bear_num = self.bear_start_analyze(stock_val_list, bear_start_list)
             self.log_msg(f"Bear start num: {bear_num}")
+
+            # calculate the total bear buf (bear_calm_funds * bear_num)
+            bear_buf = bear_num * bear_calm_fund
+            bear_calm_fund_total = bear_buf
 
             # for every week, determine how many stocks need to be sold for expenses
             port_val_weekly_list = [weekly_port_val]
@@ -554,7 +567,12 @@ class BearBufUI:
                 
                 expense_stock_num = self.weekly_expense_stock_calc(weekly)
                 remaining_stock_num -= expense_stock_num
+
+                if bear_calm_fund > weekly.bear_calm_fund:
+                    bear_calm_fund_total -= bear_calm_fund - weekly.bear_calm_fund
+
                 bear_calm_fund = weekly.bear_calm_fund
+                bear_calm_fund_total += bear_calm_fund_total * weekly_interest_rate 
 
                 if remaining_stock_num < 0:
                     remaining_stock_num = 0
@@ -581,8 +599,8 @@ class BearBufUI:
             if bear_start_dates != []:
                 self.log_msg(f"Bear start dates: {bear_start_dates}")
 
-            # total bear buf amount
-            self.log_msg(f"Bear Buf total: {bear_num * self.bear_calm_calc(bear_calm_weeks, weekly_expense_start)}")
+            self.log_msg(f"Bear Buf start value: {bear_buf:.2f}")
+            self.log_msg(f"Bear Buf end value: {bear_calm_fund_total:.2f}")
 
             self.log_msg(f"Weekly expense end: {weekly_expense_val:.2f}")
             self.log_msg(f"Portfolio end value: {port_val_weekly_list[-1]:.2f}\n\n")
@@ -676,6 +694,7 @@ class BearBufUI:
             portfolio_start=portfolio_start,
             weekly_expense_start=weekly_expenses,
             annual_inflation_rate=annual_inflation_rate,
+            annual_interest_rate=annual_interest_rate,
             bear_calm_weeks=bear_calm_weeks
         )
 
