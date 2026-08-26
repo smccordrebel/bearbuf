@@ -576,8 +576,8 @@ class BearBufUI:
 
                 if remaining_stock_num < 0:
                     remaining_stock_num = 0
-                    self.log_err(f"You started spending on {self.stock_date[0]}. You broke on {self.stock_date[week]} :(")
-                    return
+                    #self.log_err(f"You started spending on {self.stock_date[0]}. You broke on {self.stock_date[week]} :(")
+                    #break
 
                 weekly_port_val = remaining_stock_num * stock_val_list[week]
                 port_val_weekly_list.append(weekly_port_val)
