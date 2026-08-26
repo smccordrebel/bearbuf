@@ -513,23 +513,32 @@ class BearBufUI:
     ):
         """Anaylze the portfolio and expenses over time and plot the data"""
         try:
-            first_stock_price = float(self.stock_value[0])
-            if first_stock_price <= 0:
-                self.log_err("Historical starting stock value must be greater than 0.")
-                return
-
-            stock_num_start = portfolio_start / first_stock_price
-            port_val_start = stock_num_start * first_stock_price
-
-            # stock dates are every week throughout the range
+            # create lists of the weekly dates and stock prices
             week_list = list(range(len(self.stock_date)))
             stock_val_list = [float(val) for val in self.stock_value]
-
-            if len(week_list) != len(stock_val_list):
-                self.log_err("Stock date and value lists are not the same length")
+            if any(value <= 0 for value in stock_val_list):
+                self.log_err("Historical stock values must be greater than 0.")
                 return
 
-            # initialize starting values
+            if len(week_list) != len(stock_val_list):
+                self.log_err("Stock date and stock value lists are not the same length")
+                return
+            
+            stock_num_start = portfolio_start / stock_val_list[0]
+            port_val_start = stock_num_start * stock_val_list[0]
+
+            # a single bear calm fund is == starting expenses * number of weeks
+            bear_calm_amount = bear_calm_weeks * weekly_expense_start
+
+            # analyze the data for bear markets
+            bear_start_list = [False] * len(stock_val_list)
+            bear_num_start = self.bear_start_analyze(stock_val_list, bear_start_list)
+
+            # calculate the total bear buf (bear_calm_funds * bear_num_start)
+            bear_buf_start = bear_num_start * bear_calm_amount
+            bear_buf = bear_buf_start
+
+            # initialize weekly processing variables
             weekly_expense_val = weekly_expense_start
             weekly_port_val = port_val_start
             remaining_stock_num = stock_num_start
@@ -543,19 +552,8 @@ class BearBufUI:
             self.results["interest_annual"] = annual_interest_rate
             self.results["interest_weekly"] = weekly_interest_rate
             self.results["expense_start"] = weekly_expense_start
-
-            # a single bear calm fund is == starting expenses * number of weeks
-            bear_calm_amount = bear_calm_weeks * weekly_expense_start
             self.results["bear_calm"] = bear_calm_amount
-
-            # analyze the data for bear markets
-            bear_start_list = [False] * len(stock_val_list)
-            bear_num_start = self.bear_start_analyze(stock_val_list, bear_start_list)
             self.results["bear_num_total"] = bear_num_start
-
-            # calculate the total bear buf (bear_calm_funds * bear_num_start)
-            bear_buf_start = bear_num_start * bear_calm_amount
-            bear_buf = bear_buf_start
 
             # for every week, determine how many stocks need to be sold for expenses
             port_val_weekly_list = [weekly_port_val]
