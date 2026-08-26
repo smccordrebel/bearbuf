@@ -390,7 +390,7 @@ class BearBufUI:
         weekly_inflation_rate = (1 + annual) ** (1 / 52) - 1
         return weekly_inflation_rate
 
-    def weekly_expense_stock_calc(self, expenses, stock_price, bear_start, bear_calm_fund):
+    def weekly_expense_stock_calc(self, expenses, stock_price, bear_active, bear_calm_fund):
         """
         Determine how many stocks need to be sold to cover expenses. Utilize
         the bear calming savings if in a bear market.
@@ -399,13 +399,13 @@ class BearBufUI:
         """
         exps = expenses
 
-        if not bear_start:
+        if not bear_active:
             return exps / stock_price
 
          # if it is a bear market, try and use bear calming $$
         if bear_calm_fund >= exps:
             # no stocks are needed to pay expenses
-            bear_calm_fund -= exps
+            bear_calm_fund = bear_calm_fund - exps
             return 0
         
         elif bear_calm_fund > 0:
@@ -504,7 +504,6 @@ class BearBufUI:
             weekly_port_val = port_val_start
             remaining_stock_num = stock_num_start
             weekly_inflation_rate = self.inflation_weekly_calc(annual_inflation_rate)
-            bear_calm_fund = self.bear_calm_calc(bear_calm_weeks, weekly_expense_start)
 
             self.log_msg(f"Historical data range: {self.stock_date[0]} to {self.stock_date[-1]}")
             self.log_msg(f"Portfolio start value: {port_val_start}")
@@ -512,17 +511,21 @@ class BearBufUI:
             self.log_msg(f"Weekly inflation rate: {weekly_inflation_rate:.6f}")
             self.log_msg(f"Weekly expense start: {weekly_expense_start:.2f}")
 
+            # a single bear calm fund is the starting expenses * number of weeks
+            global bear_calm_fund
+            bear_calm_fund = self.bear_calm_calc(bear_calm_weeks, weekly_expense_start)
+            self.log_msg(f"Bear calm fund: {bear_calm_fund}")
+
             # analyze the data for bear markets
             bear_start_list = [False] * len(stock_val_list)
             bear_num = self.bear_start_analyze(stock_val_list, bear_start_list)
             self.log_msg(f"Bear start num: {bear_num}")
-            self.log_msg(f"Bear calm fund: {bear_calm_fund}")
 
             # for every week in the history, determine how many stocks
             # need to be sold for expenses
             port_val_weekly_list = [weekly_port_val]
             bear_active = False
-            bear_starts = 0
+
             for week in week_list[1:]:
                 if stock_val_list[week] <= 0:
                     self.log_err(f"Historical stock value at week {week} must be greater than 0.")
@@ -532,20 +535,16 @@ class BearBufUI:
                 # the bear calm fund until it is depleted
                 if not bear_active:
                     bear_active = bear_start_list[week]
-
-                    # keep track of the bear markets
-                    if bear_active:
-                        bear_starts += 1
                 else:
                     if bear_calm_fund <= 0:
                         bear_active = False
                         # refresh the bear calm fund if available
                         bear_calm_fund = self.bear_calm_calc(bear_calm_weeks, weekly_expense_start)
 
-                expense_stock_num = self.weekly_expense_stock_calc(weekly_expense_val, 
-                                                                   stock_val_list[week], 
-                                                                   bear_active,
-                                                                   bear_calm_fund)
+                expense_stock_num = self.weekly_expense_stock_calc(expenses=weekly_expense_val, 
+                                                                   stock_price=stock_val_list[week], 
+                                                                   bear_active=bear_active,
+                                                                   bear_calm_fund=bear_calm_fund)
                 remaining_stock_num -= expense_stock_num
 
                 if remaining_stock_num < 0:
