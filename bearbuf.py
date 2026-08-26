@@ -447,7 +447,7 @@ class BearBufUI:
             self.log_msg(f"Weekly interest rate: {self.results["interest_weekly"]:.8f}")
             self.log_msg(f"Expense start: {self.results["expense_start"]:.2f}")
             self.log_msg(f"Expense end: {self.results["expense_end"]:.2f}")
-            self.log_msg(f"Bear markets: {self.results["bear_num"]}")
+            self.log_msg(f"Bear markets: {self.results["bear_num_total"]}")
             self.log_msg(f"Bear market dates: {self.results["bear_dates"]}")
             self.log_msg(f"Bear calm amount: {self.results["bear_calm"]:.2f}")
             self.log_msg(f"Bear buf start: {self.results["bb_start"]:.2f}")
@@ -544,23 +544,25 @@ class BearBufUI:
             self.results["interest_weekly"] = weekly_interest_rate
             self.results["expense_start"] = weekly_expense_start
 
-            # a single bear calm fund is (starting expenses * number of weeks)
-            bear_calm_fund = self.bear_calm_calc(bear_calm_weeks, weekly_expense_start)
-            self.results["bear_calm"] = bear_calm_fund
+            # a single bear calm fund is == starting expenses * number of weeks
+            bear_calm_amount = bear_calm_weeks * weekly_expense_start
+            self.results["bear_calm"] = bear_calm_amount
 
             # analyze the data for bear markets
             bear_start_list = [False] * len(stock_val_list)
-            bear_num = self.bear_start_analyze(stock_val_list, bear_start_list)
-            self.results["bear_num"] = bear_num
+            bear_num_start = self.bear_start_analyze(stock_val_list, bear_start_list)
+            self.results["bear_num_total"] = bear_num_start
 
-            # calculate the total bear buf (bear_calm_funds * bear_num)
-            bear_buf = bear_num * bear_calm_fund
-            bear_calm_fund_total = bear_buf
+            # calculate the total bear buf (bear_calm_funds * bear_num_start)
+            bear_buf_start = bear_num_start * bear_calm_amount
+            bear_buf = bear_buf_start
 
             # for every week, determine how many stocks need to be sold for expenses
             port_val_weekly_list = [weekly_port_val]
             bear_active = False
             bear_start_dates = []
+            bear_calm_fund = bear_calm_amount
+            bear_num_remaining = bear_num_start
 
             for week in week_list[1:]:
                 if stock_val_list[week] <= 0:
@@ -577,7 +579,7 @@ class BearBufUI:
                     if bear_calm_fund <= 0:
                         bear_active = False
                         # refresh the bear calm fund if available
-                        bear_calm_fund = self.bear_calm_calc(bear_calm_weeks, weekly_expense_start)
+                        bear_calm_fund, bear_num_remaining = self.bear_calm_calc(bear_calm_amount, bear_num_remaining)
 
                 weekly = WeeklyExpenses(expenses=weekly_expense_val,
                                     stock_price=stock_val_list[week],
@@ -588,10 +590,10 @@ class BearBufUI:
                 remaining_stock_num -= expense_stock_num
 
                 if bear_calm_fund > weekly.bear_calm_fund:
-                    bear_calm_fund_total -= bear_calm_fund - weekly.bear_calm_fund
+                    bear_buf -= bear_calm_fund - weekly.bear_calm_fund
 
                 bear_calm_fund = weekly.bear_calm_fund
-                bear_calm_fund_total += bear_calm_fund_total * weekly_interest_rate 
+                bear_buf += bear_buf * weekly_interest_rate 
 
                 if remaining_stock_num < 0:
                     remaining_stock_num = 0
@@ -619,8 +621,8 @@ class BearBufUI:
             else:
                 self.results["bear_dates"] = "None"
 
-            self.results["bb_start"] = bear_buf
-            self.results["bb_end"] = bear_calm_fund_total
+            self.results["bb_start"] = bear_buf_start
+            self.results["bb_end"] = bear_buf
             self.results["expense_end"] = weekly_expense_val
             self.results["port_end"] = port_val_weekly_list[-1]
 
@@ -631,9 +633,12 @@ class BearBufUI:
         except Exception as e:
             self.log_err(f"{type(e).__name__}: {e}")
 
-    def bear_calm_calc(self, weeks, expenses):
+    def bear_calm_calc(self, calm_amount, bear_num_remaining):
         """Determine the bear calm amount"""
-        return weeks * expenses
+        if bear_num_remaining > 0:
+            return calm_amount, bear_num_remaining - 1
+        else:
+            return 0, 0
 
     def display_data(self, x_label, week_list, port_val_weekly_list):
         """Display the portfolio analysis data on the graph"""
