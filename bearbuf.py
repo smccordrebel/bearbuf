@@ -402,6 +402,8 @@ class BearBufUI:
         Determine how many stocks need to be sold to cover expenses. Utilize
         the bear calming funds if in a bear market.
 
+        @attention bear_calm_funds are mutated in this method
+
         @return the number of stocks that need to be sold
         """
         exps = weekly.expenses
@@ -409,7 +411,7 @@ class BearBufUI:
         if not weekly.bear_active:
             return exps / weekly.stock_price
 
-         # if it is a bear market, try and use bear calming $$
+        # if it is a bear market, try and use bear calming $$
         if weekly.bear_calm_fund >= exps:
             # no stocks are needed to pay expenses
             weekly.bear_calm_fund -= exps
@@ -538,6 +540,7 @@ class BearBufUI:
 
             if not week_list or not stock_val_list:
                 self.log_err("Invalid input data")
+                return
 
             stock_num_start = portfolio_start / stock_val_list[0]
             port_val_start = stock_num_start * stock_val_list[0]
@@ -587,8 +590,14 @@ class BearBufUI:
                 else:
                     if bear_calm_fund <= 0:
                         bear_active = False
-                        # refresh the bear calm fund if available
-                        bear_calm_fund, bear_num_remaining = self.bear_calm_calc(bear_calm_amount, bear_num_remaining)
+
+                        # if there are bear calm funds available, refresh them
+                        if bear_num_remaining > 0:
+                            bear_calm_fund = bear_calm_amount
+                            bear_num_remaining -= 1
+                        else:
+                            bear_calm_fund = 0
+                            bear_num_remaining = 0
 
                 weekly = WeeklyExpenses(expenses=weekly_expense_val,
                                     stock_price=stock_val_list[week],
@@ -642,13 +651,6 @@ class BearBufUI:
         except Exception as e:
             self.log_err(f"{type(e).__name__}: {e}")
 
-    def bear_calm_calc(self, calm_amount, bear_num_remaining):
-        """Determine the bear calm amount"""
-        if bear_num_remaining > 0:
-            return calm_amount, bear_num_remaining - 1
-        else:
-            return 0, 0
-
     def display_data(self, x_label, week_list, port_val_weekly_list):
         """Display the portfolio analysis data on the graph"""
         title = (
@@ -683,6 +685,9 @@ class BearBufUI:
 
     def historical_data_read(self):
         """Read the historical data"""
+
+        # @todo validate the data, make sure it is sequential weeks
+        # and that the stock values can be converted to floats
         try:
             self.history_clear()
 
@@ -718,9 +723,6 @@ class BearBufUI:
 
         if not self.stock_date or not self.stock_value:
             return
-
-        # annual_interest_rate parsed and validated for future use
-        _ = annual_interest_rate
 
         self.analyze_historical_data(
             portfolio_start=portfolio_start,
