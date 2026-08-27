@@ -173,7 +173,7 @@ class BearBufUI:
         self.portfolio_start_val = tk.StringVar(value="2115000")
         self.weekly_expenses_val = tk.StringVar(value="2000")
         self.annual_inflation_rate_val = tk.StringVar(value="3")
-        self.annual_interest_rate_val = tk.StringVar(value="2.5")
+        self.annual_interest_rate_val = tk.StringVar(value="2")
         self.bear_calm_weeks_val = tk.StringVar(value="0")
 
         vcmd_int = (self.root.register(self.validate_integer_entry), "%P")
@@ -441,8 +441,8 @@ class BearBufUI:
         """Log all results of a portfolio analysis"""
         try:
             self.log_msg(f"Historical data range: {self.results["date_range"]}")
-            self.log_msg(f"Portfolio start value: {self.results["port_start"]:.2f}")
-            self.log_msg(f"Portfolio end value: {self.results["port_end"]:.2f}")
+            self.log_msg(f"Portfolio start value: {self.results["port_total_start"]:.2f}")
+            self.log_msg(f"Portfolio end value: {self.results["port_total_end"]:.2f}")
             self.log_msg(f"Annual inflation rate: {self.results["inflation_annual"]}")
             self.log_msg(f"Weekly inflation rate: {self.results["inflation_weekly"]:.8f}")
             self.log_msg(f"Annual interest rate: {self.results["interest_annual"]}")
@@ -546,7 +546,7 @@ class BearBufUI:
                 self.log_err("Invalid input data")
                 return
 
-            # a single bear calm fund is == starting expenses * number of weeks
+            # a single bear calm fund == number of weeks * weekly expenses
             bear_calm_fund_start = bear_calm_weeks * weekly_expense_start
 
             # analyze the data for bear markets
@@ -557,21 +557,18 @@ class BearBufUI:
             bear_buf_start = bear_market_num * bear_calm_fund_start
             bear_buf_val = bear_buf_start
 
-            # decrease the portfolio value by the bear buf value
-            portfolio_start -= bear_buf_val
-
-            stock_num_start = portfolio_start / stock_val_list[0]
-            port_val_start = stock_num_start * stock_val_list[0]
+            # the bear buf is funded through the portfolio, deduct that money
+            # before calculating the starting stock number
+            remaining_stock_num = (portfolio_start - bear_buf_val) / stock_val_list[0]
 
             # initialize weekly processing variables
             weekly_expense_val = weekly_expense_start
-            weekly_port_val = port_val_start
-            remaining_stock_num = stock_num_start
+            weekly_port_val = portfolio_start
             weekly_inflation_rate = self.weekly_rate_from_annual(annual_inflation_rate)
             weekly_interest_rate = self.weekly_rate_from_annual(annual_interest_rate)
 
             self.results["date_range"] = f"{self.stock_date[0]} to {self.stock_date[-1]}"
-            self.results["port_start"] = port_val_start + bear_buf_start
+            self.results["port_total_start"] = portfolio_start
             self.results["inflation_annual"] = annual_inflation_rate
             self.results["inflation_weekly"] = weekly_inflation_rate
             self.results["interest_annual"] = annual_interest_rate
@@ -627,7 +624,7 @@ class BearBufUI:
                 interest = bear_buf_val * weekly_interest_rate 
                 bear_buf_val += interest
 
-                weekly_port_val = remaining_stock_num * stock_val_list[week]
+                weekly_port_val = (remaining_stock_num * stock_val_list[week]) + bear_buf_val
                 port_val_weekly_list.append(weekly_port_val)
 
                 weekly_expense_val += weekly_expense_val * weekly_inflation_rate
@@ -649,7 +646,7 @@ class BearBufUI:
             self.results["bb_start"] = bear_buf_start
             self.results["bb_end"] = bear_buf_val
             self.results["expense_end"] = weekly_expense_val
-            self.results["port_end"] = port_val_weekly_list[-1] + bear_buf_val
+            self.results["port_total_end"] = port_val_weekly_list[-1] + bear_buf_val
 
             self.log_results()
 
@@ -665,8 +662,8 @@ class BearBufUI:
     def display_data(self, x_label, week_list, port_val_weekly_list):
         """Display the portfolio analysis data on the graph"""
         title = (
-            f"Portfolio start: {self.results["port_start"]:.2f} "
-            f"end: {self.results["port_end"]:.2f}"
+            f"Portfolio start: {self.results["port_total_start"]:.2f} "
+            f"end: {self.results["port_total_end"]:.2f}"
         )
 
         self.ax_portfolio.clear()
