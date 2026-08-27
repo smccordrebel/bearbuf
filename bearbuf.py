@@ -610,17 +610,19 @@ class BearBufUI:
                                       bear_calm_fund=bear_calm_fund)
                 
                 expense_stock_num = self.weekly_expense_stock_calc(calc)
-                remaining_stock_num -= expense_stock_num
 
+                if expense_stock_num <= remaining_stock_num:
+                    remaining_stock_num -= expense_stock_num
+                elif remaining_stock_num > 0:
+                    remaining_stock_num = 0
+
+                # adjust the bear buf if bear calm funds were used
                 if bear_calm_fund > calc.bear_calm_fund:
                     bear_buf_val -= (bear_calm_fund - calc.bear_calm_fund)
 
                 bear_calm_fund = calc.bear_calm_fund
                 interest = bear_buf_val * weekly_interest_rate 
                 bear_buf_val += interest
-
-                if remaining_stock_num < 0:
-                    remaining_stock_num = 0
 
                 weekly_port_val = remaining_stock_num * stock_val_list[week]
                 port_val_weekly_list.append(weekly_port_val)
