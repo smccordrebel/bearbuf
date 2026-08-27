@@ -170,8 +170,8 @@ class BearBufUI:
             row=4, column=0, sticky="w", padx=(0, 10), pady=4
         )
 
-        self.portfolio_start_val = tk.StringVar(value="2000000")
-        self.weekly_expenses_val = tk.StringVar(value="1600")
+        self.portfolio_start_val = tk.StringVar(value="2115000")
+        self.weekly_expenses_val = tk.StringVar(value="2000")
         self.annual_inflation_rate_val = tk.StringVar(value="3")
         self.annual_interest_rate_val = tk.StringVar(value="2.5")
         self.bear_calm_weeks_val = tk.StringVar(value="0")
