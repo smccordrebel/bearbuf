@@ -558,7 +558,7 @@ class BearBufUI:
 
             # calculate the total bear buf (bear_calm_funds * bear_num_start)
             bear_buf_start = bear_num_start * bear_calm_amount
-            bear_buf = bear_buf_start
+            bear_buf_val = bear_buf_start
 
             # initialize weekly processing variables
             weekly_expense_val = weekly_expense_start
@@ -568,7 +568,7 @@ class BearBufUI:
             weekly_interest_rate = self.weekly_rate_from_annual(annual_interest_rate)
 
             self.results["date_range"] = f"{self.stock_date[0]} to {self.stock_date[-1]}"
-            self.results["port_start"] = port_val_start
+            self.results["port_start"] = port_val_start + bear_buf_start
             self.results["inflation_annual"] = annual_inflation_rate
             self.results["inflation_weekly"] = weekly_inflation_rate
             self.results["interest_annual"] = annual_interest_rate
@@ -612,10 +612,10 @@ class BearBufUI:
                 remaining_stock_num -= expense_stock_num
 
                 if bear_calm_fund > calc.bear_calm_fund:
-                    bear_buf -= (bear_calm_fund - calc.bear_calm_fund)
+                    bear_buf_val -= (bear_calm_fund - calc.bear_calm_fund)
 
                 bear_calm_fund = calc.bear_calm_fund
-                bear_buf += bear_buf * weekly_interest_rate 
+                bear_buf_val += bear_buf_val * weekly_interest_rate 
 
                 if remaining_stock_num < 0:
                     remaining_stock_num = 0
@@ -644,9 +644,9 @@ class BearBufUI:
                 self.results["bear_dates"] = "None"
 
             self.results["bb_start"] = bear_buf_start
-            self.results["bb_end"] = bear_buf
+            self.results["bb_end"] = bear_buf_val
             self.results["expense_end"] = weekly_expense_val
-            self.results["port_end"] = port_val_weekly_list[-1]
+            self.results["port_end"] = port_val_weekly_list[-1] + bear_buf_val
 
             self.log_results()
 
