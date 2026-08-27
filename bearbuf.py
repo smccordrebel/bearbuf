@@ -170,10 +170,10 @@ class BearBufUI:
             row=4, column=0, sticky="w", padx=(0, 10), pady=4
         )
 
-        self.portfolio_start_val = tk.StringVar(value="2115000")
-        self.weekly_expenses_val = tk.StringVar(value="2000")
+        self.portfolio_start_val = tk.StringVar(value="2000000")
+        self.weekly_expenses_val = tk.StringVar(value="1800")
         self.annual_inflation_rate_val = tk.StringVar(value="3")
-        self.annual_interest_rate_val = tk.StringVar(value="2")
+        self.annual_interest_rate_val = tk.StringVar(value="1")
         self.bear_calm_weeks_val = tk.StringVar(value="0")
 
         vcmd_int = (self.root.register(self.validate_integer_entry), "%P")
@@ -393,8 +393,8 @@ class BearBufUI:
 
     def weekly_rate_from_annual(self, annual_rate: float) -> float:
         """Calculate a weekly rate from an annual rate"""
-        rate = annual_rate / 100
-        weekly_rate = (1 + rate) ** (1 / 52) - 1
+        annual_rate /= 100
+        weekly_rate = annual_rate / 52
         return weekly_rate
     
     def weekly_expense_stock_calc(self, calc:WeeklyExpenses):
@@ -628,7 +628,7 @@ class BearBufUI:
                 weekly_port_val = (stock_num_remaining * stock_val_list[week]) + bear_buf_val
                 port_val_weekly_list.append(weekly_port_val)
 
-                weekly_expense_val += weekly_expense_val * weekly_inflation_rate
+                weekly_expense_val += (weekly_expense_val * weekly_inflation_rate)
 
             if len(port_val_weekly_list) != len(week_list):
                 self.log_err((
