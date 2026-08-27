@@ -525,6 +525,17 @@ class BearBufUI:
 
         return week_list, stock_val_list
 
+    def bear_calm_funds_refresh(self, num_remaining, bear_buf, bear_calm):
+        """If there are remaining bear buf funds, refresh the bear calming funds"""
+        if num_remaining > 0:
+            bear_calm = bear_buf / num_remaining
+            num_remaining -= 1
+        else:
+            bear_calm = 0
+            num_remaining = 0
+
+        return num_remaining, bear_calm
+    
     def analyze_historical_data(
         self,
         portfolio_start: float,
@@ -592,15 +603,18 @@ class BearBufUI:
 
                     if bear_active:
                         bear_start_dates.append(self.stock_date[week])
-
-                        # if there are bear buf funds, refresh the bear calm funds
-                        if bear_num_remaining > 0:
-                            bear_calm_fund = bear_buf_val / bear_num_remaining
-                            bear_num_remaining -= 1
-                        else:
-                            bear_calm_fund = 0
-                            bear_num_remaining = 0
+                        bear_num_remaining, bear_calm_fund = self.bear_calm_funds_refresh(bear_num_remaining,
+                                                                                          bear_buf_val, 
+                                                                                          bear_calm_fund)
                 else:
+                    # check to see if another bear market has triggered while 
+                    # we are using bear calming funds
+                    if bear_start_list[week]:
+                        bear_start_dates.append(self.stock_date[week])
+                        bear_num_remaining, bear_calm_fund = self.bear_calm_funds_refresh(bear_num_remaining,
+                                                                                        bear_buf_val, 
+                                                                                        bear_calm_fund)
+
                     if bear_calm_fund <= 0:
                         bear_calm_fund = 0
                         bear_active = False
