@@ -44,11 +44,14 @@ PLOT_TITLE_FLOW = "Portfolio"
 HISTORICAL_FILENAME = "VTSAX_history.csv"
 
 @dataclass
-class WeeklyExpenses:
+class WeeklyCalcData:
     expenses: float
     stock_price: float
     bear_active: bool
     bear_calm_fund: float
+
+
+
 
 # ============================================================================
 # Bear Buf UI Application
@@ -397,7 +400,7 @@ class BearBufUI:
         weekly_rate = annual_rate / 52
         return weekly_rate
     
-    def weekly_expense_stock_calc(self, calc:WeeklyExpenses):
+    def weekly_expense_stock_calc(self, calc:WeeklyCalcData):
         """
         Determine how many stocks need to be sold to cover expenses. Utilize
         the bear calming funds if in a bear market.
@@ -568,6 +571,10 @@ class BearBufUI:
             bear_buf_start = bear_market_num * bear_calm_fund_start
             bear_buf_val = bear_buf_start
 
+            if bear_buf_val > portfolio_start:
+                self.log_err("Not enough $$ in portfolio to fund the bear buf")
+                return
+
             # the bear buf is funded through the portfolio, deduct that money
             # before calculating the starting stock number
             stock_num_remaining = (portfolio_start - bear_buf_val) / stock_val_list[0]
@@ -592,7 +599,7 @@ class BearBufUI:
             port_val_weekly_list = [weekly_port_val]
             bear_active = False
             bear_start_dates = []
-            bear_num_remaining = bear_market_num
+            bear_remaining = bear_market_num
             bear_calm_fund = 0
 
             for week in week_list[1:]:
@@ -603,23 +610,23 @@ class BearBufUI:
 
                     if bear_active:
                         bear_start_dates.append(self.stock_date[week])
-                        bear_num_remaining, bear_calm_fund = self.bear_calm_funds_refresh(bear_num_remaining,
-                                                                                          bear_buf_val, 
-                                                                                          bear_calm_fund)
+                        bear_remaining, bear_calm_fund = self.bear_calm_funds_refresh(bear_remaining,
+                                                                                    bear_buf_val, 
+                                                                                    bear_calm_fund)
                 else:
                     # check to see if another bear market has triggered while 
                     # we are using bear calming funds
                     if bear_start_list[week]:
                         bear_start_dates.append(self.stock_date[week])
-                        bear_num_remaining, bear_calm_fund = self.bear_calm_funds_refresh(bear_num_remaining,
-                                                                                        bear_buf_val, 
-                                                                                        bear_calm_fund)
+                        bear_remaining, bear_calm_fund = self.bear_calm_funds_refresh(bear_remaining,
+                                                                                    bear_buf_val, 
+                                                                                    bear_calm_fund)
 
                     if bear_calm_fund <= 0:
                         bear_calm_fund = 0
                         bear_active = False
 
-                calc = WeeklyExpenses(expenses=weekly_expense_val,
+                calc = WeeklyCalcData(expenses=weekly_expense_val,
                                       stock_price=stock_val_list[week],
                                       bear_active=bear_active,
                                       bear_calm_fund=bear_calm_fund)
