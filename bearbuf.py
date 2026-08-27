@@ -173,7 +173,7 @@ class BearBufUI:
         self.portfolio_start_val = tk.StringVar(value="2000000")
         self.weekly_expenses_val = tk.StringVar(value="1600")
         self.annual_inflation_rate_val = tk.StringVar(value="3")
-        self.annual_interest_rate_val = tk.StringVar(value="4")
+        self.annual_interest_rate_val = tk.StringVar(value="2.5")
         self.bear_calm_weeks_val = tk.StringVar(value="0")
 
         vcmd_int = (self.root.register(self.validate_integer_entry), "%P")
@@ -554,10 +554,10 @@ class BearBufUI:
 
             # analyze the data for bear markets
             bear_start_list = [False] * len(stock_val_list)
-            bear_num_start = self.bear_start_analyze(stock_val_list, bear_start_list)
+            bear_market_num = self.bear_start_analyze(stock_val_list, bear_start_list)
 
-            # calculate the total bear buf (bear_calm_funds * bear_num_start)
-            bear_buf_start = bear_num_start * bear_calm_amount
+            # calculate the total bear buf (bear_calm_funds * bear_market_num)
+            bear_buf_start = bear_market_num * bear_calm_amount
             bear_buf_val = bear_buf_start
 
             # initialize weekly processing variables
@@ -575,14 +575,16 @@ class BearBufUI:
             self.results["interest_weekly"] = weekly_interest_rate
             self.results["expense_start"] = weekly_expense_start
             self.results["bear_calm"] = bear_calm_amount
-            self.results["bear_num_total"] = bear_num_start
+            self.results["bear_num_total"] = bear_market_num
 
             # for every week, determine how many stocks need to be sold for expenses
             port_val_weekly_list = [weekly_port_val]
             bear_active = False
             bear_start_dates = []
-            bear_calm_fund = bear_calm_amount
-            bear_num_remaining = bear_num_start
+
+            # initialize the bear calm funds
+            bear_calm_fund = bear_buf_start / bear_market_num
+            bear_num_remaining = bear_market_num - 1
 
             for week in week_list[1:]:
                 # if a bear start is detected, expenses are paid from
@@ -597,16 +599,16 @@ class BearBufUI:
 
                         # if there are bear calm funds available, refresh them
                         if bear_num_remaining > 0:
-                            bear_calm_fund = bear_calm_amount
+                            bear_calm_fund = bear_buf_val / bear_num_remaining
                             bear_num_remaining -= 1
                         else:
                             bear_calm_fund = 0
                             bear_num_remaining = 0
 
                 calc = WeeklyExpenses(expenses=weekly_expense_val,
-                                    stock_price=stock_val_list[week],
-                                    bear_active=bear_active,
-                                    bear_calm_fund=bear_calm_fund)
+                                      stock_price=stock_val_list[week],
+                                      bear_active=bear_active,
+                                      bear_calm_fund=bear_calm_fund)
                 
                 expense_stock_num = self.weekly_expense_stock_calc(calc)
                 remaining_stock_num -= expense_stock_num
@@ -633,10 +635,6 @@ class BearBufUI:
                 ))
                 return
 
-            # display the data on the plot
-            x_label = f"Weeks from {self.stock_date[0]} to {self.stock_date[-1]}"
-            self.display_data(x_label, week_list, port_val_weekly_list)
-
             # log the results of the analysis
             if bear_start_dates != []:
                 self.results["bear_dates"] = bear_start_dates
@@ -650,6 +648,10 @@ class BearBufUI:
 
             self.log_results()
 
+            # display the data on the plot
+            x_label = f"Weeks from {self.stock_date[0]} to {self.stock_date[-1]}"
+            self.display_data(x_label, week_list, port_val_weekly_list)
+
             self.history_clear()
 
         except Exception as e:
@@ -658,8 +660,8 @@ class BearBufUI:
     def display_data(self, x_label, week_list, port_val_weekly_list):
         """Display the portfolio analysis data on the graph"""
         title = (
-            f"Portfolio start: {port_val_weekly_list[0]:.2f} "
-            f"end: {port_val_weekly_list[-1]:.2f}"
+            f"Portfolio start: {self.results["port_start"]:.2f} "
+            f"end: {self.results["port_end"]:.2f}"
         )
 
         self.ax_portfolio.clear()
