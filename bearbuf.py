@@ -550,14 +550,14 @@ class BearBufUI:
             port_val_start = stock_num_start * stock_val_list[0]
 
             # a single bear calm fund is == starting expenses * number of weeks
-            bear_calm_amount = bear_calm_weeks * weekly_expense_start
+            bear_calm_fund_start = bear_calm_weeks * weekly_expense_start
 
             # analyze the data for bear markets
             bear_start_list = [False] * len(stock_val_list)
             bear_market_num = self.bear_start_analyze(stock_val_list, bear_start_list)
 
             # calculate the total bear buf (bear_calm_funds * bear_market_num)
-            bear_buf_start = bear_market_num * bear_calm_amount
+            bear_buf_start = bear_market_num * bear_calm_fund_start
             bear_buf_val = bear_buf_start
 
             # initialize weekly processing variables
@@ -574,17 +574,15 @@ class BearBufUI:
             self.results["interest_annual"] = annual_interest_rate
             self.results["interest_weekly"] = weekly_interest_rate
             self.results["expense_start"] = weekly_expense_start
-            self.results["bear_calm"] = bear_calm_amount
+            self.results["bear_calm"] = bear_calm_fund_start
             self.results["bear_num_total"] = bear_market_num
 
             # for every week, determine how many stocks need to be sold for expenses
             port_val_weekly_list = [weekly_port_val]
             bear_active = False
             bear_start_dates = []
-
-            # initialize the bear calm funds
-            bear_calm_fund = bear_buf_start / bear_market_num
-            bear_num_remaining = bear_market_num - 1
+            bear_num_remaining = bear_market_num
+            bear_calm_fund = 0
 
             for week in week_list[1:]:
                 # if a bear start is detected, expenses are paid from
@@ -593,17 +591,18 @@ class BearBufUI:
                     bear_active = bear_start_list[week]
                     if bear_active:
                         bear_start_dates.append(self.stock_date[week])
-                else:
-                    if bear_calm_fund <= 0:
-                        bear_active = False
 
-                        # if there are bear calm funds available, refresh them
+                        # if there are bear buf funds, refresh the bear calm funds
                         if bear_num_remaining > 0:
                             bear_calm_fund = bear_buf_val / bear_num_remaining
                             bear_num_remaining -= 1
                         else:
                             bear_calm_fund = 0
                             bear_num_remaining = 0
+                else:
+                    if bear_calm_fund <= 0:
+                        bear_calm_fund = 0
+                        bear_active = False
 
                 calc = WeeklyExpenses(expenses=weekly_expense_val,
                                       stock_price=stock_val_list[week],
@@ -617,7 +616,8 @@ class BearBufUI:
                     bear_buf_val -= (bear_calm_fund - calc.bear_calm_fund)
 
                 bear_calm_fund = calc.bear_calm_fund
-                bear_buf_val += bear_buf_val * weekly_interest_rate 
+                interest = bear_buf_val * weekly_interest_rate 
+                bear_buf_val += interest
 
                 if remaining_stock_num < 0:
                     remaining_stock_num = 0
