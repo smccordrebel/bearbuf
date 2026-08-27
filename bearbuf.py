@@ -397,7 +397,7 @@ class BearBufUI:
         weekly_rate = (1 + rate) ** (1 / 52) - 1
         return weekly_rate
     
-    def weekly_expense_stock_calc(self, weekly:WeeklyExpenses):
+    def weekly_expense_stock_calc(self, calc:WeeklyExpenses):
         """
         Determine how many stocks need to be sold to cover expenses. Utilize
         the bear calming funds if in a bear market.
@@ -406,26 +406,26 @@ class BearBufUI:
 
         @return the number of stocks that need to be sold
         """
-        exps = weekly.expenses
+        exps = calc.expenses
 
-        if not weekly.bear_active:
-            return exps / weekly.stock_price
+        if not calc.bear_active:
+            return exps / calc.stock_price
 
         # if it is a bear market, try and use bear calming $$
-        if weekly.bear_calm_fund >= exps:
+        if calc.bear_calm_fund >= exps:
             # no stocks are needed to pay expenses
-            weekly.bear_calm_fund -= exps
+            calc.bear_calm_fund -= exps
             return 0
         
-        elif weekly.bear_calm_fund > 0:
+        elif calc.bear_calm_fund > 0:
             # use the remaining bear calming $$ and sell stocks for the rest
-            exps -= weekly.bear_calm_fund
-            weekly.bear_calm_fund = 0
-            return exps / weekly.stock_price
+            exps -= calc.bear_calm_fund
+            calc.bear_calm_fund = 0
+            return exps / calc.stock_price
 
         else:
             # no bear calming $$ left, sell stocks
-            return exps / weekly.stock_price
+            return exps / calc.stock_price
 
 
     def log_err(self, msg):
@@ -603,18 +603,18 @@ class BearBufUI:
                             bear_calm_fund = 0
                             bear_num_remaining = 0
 
-                weekly = WeeklyExpenses(expenses=weekly_expense_val,
+                calc = WeeklyExpenses(expenses=weekly_expense_val,
                                     stock_price=stock_val_list[week],
                                     bear_active=bear_active,
                                     bear_calm_fund=bear_calm_fund)
                 
-                expense_stock_num = self.weekly_expense_stock_calc(weekly)
+                expense_stock_num = self.weekly_expense_stock_calc(calc)
                 remaining_stock_num -= expense_stock_num
 
-                if bear_calm_fund > weekly.bear_calm_fund:
-                    bear_buf -= (bear_calm_fund - weekly.bear_calm_fund)
+                if bear_calm_fund > calc.bear_calm_fund:
+                    bear_buf -= (bear_calm_fund - calc.bear_calm_fund)
 
-                bear_calm_fund = weekly.bear_calm_fund
+                bear_calm_fund = calc.bear_calm_fund
                 bear_buf += bear_buf * weekly_interest_rate 
 
                 if remaining_stock_num < 0:
