@@ -559,7 +559,7 @@ class BearBufUI:
 
             # the bear buf is funded through the portfolio, deduct that money
             # before calculating the starting stock number
-            remaining_stock_num = (portfolio_start - bear_buf_val) / stock_val_list[0]
+            stock_num_remaining = (portfolio_start - bear_buf_val) / stock_val_list[0]
 
             # initialize weekly processing variables
             weekly_expense_val = weekly_expense_start
@@ -589,6 +589,7 @@ class BearBufUI:
                 # the bear calm fund until it is depleted
                 if not bear_active:
                     bear_active = bear_start_list[week]
+
                     if bear_active:
                         bear_start_dates.append(self.stock_date[week])
 
@@ -611,10 +612,10 @@ class BearBufUI:
                 
                 expense_stock_num = self.weekly_expense_stock_calc(calc)
 
-                if expense_stock_num <= remaining_stock_num:
-                    remaining_stock_num -= expense_stock_num
-                elif remaining_stock_num > 0:
-                    remaining_stock_num = 0
+                if expense_stock_num <= stock_num_remaining:
+                    stock_num_remaining -= expense_stock_num
+                elif stock_num_remaining > 0:
+                    stock_num_remaining = 0
 
                 # adjust the bear buf if bear calm funds were used
                 if bear_calm_fund > calc.bear_calm_fund:
@@ -624,7 +625,7 @@ class BearBufUI:
                 interest = bear_buf_val * weekly_interest_rate 
                 bear_buf_val += interest
 
-                weekly_port_val = (remaining_stock_num * stock_val_list[week]) + bear_buf_val
+                weekly_port_val = (stock_num_remaining * stock_val_list[week]) + bear_buf_val
                 port_val_weekly_list.append(weekly_port_val)
 
                 weekly_expense_val += weekly_expense_val * weekly_inflation_rate
@@ -646,7 +647,7 @@ class BearBufUI:
             self.results["bb_start"] = bear_buf_start
             self.results["bb_end"] = bear_buf_val
             self.results["expense_end"] = weekly_expense_val
-            self.results["port_total_end"] = port_val_weekly_list[-1] + bear_buf_val
+            self.results["port_total_end"] = port_val_weekly_list[-1]
 
             self.log_results()
 
