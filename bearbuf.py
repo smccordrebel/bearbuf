@@ -546,9 +546,6 @@ class BearBufUI:
                 self.log_err("Invalid input data")
                 return
 
-            stock_num_start = portfolio_start / stock_val_list[0]
-            port_val_start = stock_num_start * stock_val_list[0]
-
             # a single bear calm fund is == starting expenses * number of weeks
             bear_calm_fund_start = bear_calm_weeks * weekly_expense_start
 
@@ -559,6 +556,12 @@ class BearBufUI:
             # calculate the total bear buf (bear_calm_funds * bear_market_num)
             bear_buf_start = bear_market_num * bear_calm_fund_start
             bear_buf_val = bear_buf_start
+
+            # decrease the portfolio value by the bear buf value
+            portfolio_start -= bear_buf_val
+
+            stock_num_start = portfolio_start / stock_val_list[0]
+            port_val_start = stock_num_start * stock_val_list[0]
 
             # initialize weekly processing variables
             weekly_expense_val = weekly_expense_start
