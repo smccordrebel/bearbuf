@@ -42,6 +42,7 @@ WINDOW_HEIGHT = 700
 PLOT_X_LABEL = "Time (weeks)"
 PLOT_Y_LABEL = "Portfolio Value"
 PLOT_TITLE = "Portfolio"
+BEAR_CALM_WEEK_MAX = 52
 
 @dataclass
 class WeeklyCalcData:
@@ -793,6 +794,7 @@ class BearBufUI:
         if not self.stock_date or not self.stock_value:
             return
 
+        port_end_previous = 0
         port_end = self.analyze_historical_data(
             portfolio_start=portfolio_start,
             weekly_expense_start=weekly_expenses,
@@ -800,26 +802,25 @@ class BearBufUI:
             annual_interest_rate=annual_interest_rate,
             bear_calm_weeks=bear_calm_weeks)
 
-        self.log_msg(f"Final Port Value {port_end:.2f}")
-
         if self.auto_run_var.get():
-            self.log_msg(f"Auto Run On!")
+            bear_calm_weeks = 1
+            while ((bear_calm_weeks <= BEAR_CALM_WEEK_MAX) 
+                   and (port_end > port_end_previous)):
+                
+                port_end_previous = port_end
+                port_end = self.analyze_historical_data(
+                    portfolio_start=portfolio_start,
+                    weekly_expense_start=weekly_expenses,
+                    annual_inflation_rate=annual_inflation_rate,
+                    annual_interest_rate=annual_interest_rate,
+                    bear_calm_weeks=bear_calm_weeks)
+
+                bear_calm_weeks += 1
+
+        if bear_calm_weeks > BEAR_CALM_WEEK_MAX:
+            self.log_msg("Auto run stopped before finding maximum end portfolio")
         else:
-            self.log_msg(f"No Auto Run:(")
-
-        """
-        previous_port_end = 0
-        while previous_port_end < port_end:
-            previous_port_end = port_end
-            bear_calm_weeks += 1
-
-            port_end = self.analyze_historical_data(
-                        portfolio_start=portfolio_start,
-                        weekly_expense_start=weekly_expenses,
-                        annual_inflation_rate=annual_inflation_rate,
-                        annual_interest_rate=annual_interest_rate,
-                        bear_calm_weeks=bear_calm_weeks)
-        """
+            self.log_msg(f"Maximum portfolio of {port_end:.2f} found when bear calming weeks are {bear_calm_weeks}")
 
 def main():
     """Main entry point for the application."""
