@@ -69,6 +69,9 @@ class BearBufUI:
         self.stock_value = []
         self.results = {}
 
+        # UI log widget reference
+        self.log_text = None
+
         self.root.rowconfigure(0, weight=1)
         self.root.columnconfigure(0, weight=1)
 
@@ -95,7 +98,9 @@ class BearBufUI:
         self.control_frame.rowconfigure(0, weight=1)
         self.control_frame.columnconfigure(0, weight=1)
 
+        # top row holds left/right panels; bottom row holds log output
         main_container.rowconfigure(0, weight=1)
+        main_container.rowconfigure(1, weight=0)
         main_container.columnconfigure(0, weight=0)
         main_container.columnconfigure(1, weight=1)
 
@@ -337,6 +342,30 @@ class BearBufUI:
             row=0, column=0, sticky="nsew"
         )
 
+        # ------------------------------------------------------------------
+        # Bottom log output panel (spans left and right panels)
+        # ------------------------------------------------------------------
+        log_frame = ttk.LabelFrame(main_container, text="Log Output", padding=5)
+        log_frame.grid(
+            row=1, column=0, columnspan=2,
+            sticky="nsew", padx=5, pady=(5, 0)
+        )
+        log_frame.rowconfigure(0, weight=1)
+        log_frame.columnconfigure(0, weight=1)
+
+        self.log_text = tk.Text(
+            log_frame,
+            height=10,
+            wrap="word",
+            state=tk.DISABLED
+        )
+        log_scrollbar = ttk.Scrollbar(
+            log_frame, orient=tk.VERTICAL, command=self.log_text.yview
+        )
+        self.log_text.configure(yscrollcommand=log_scrollbar.set)
+        self.log_text.grid(row=0, column=0, sticky="nsew")
+        log_scrollbar.grid(row=0, column=1, sticky="ns")
+
     def validate_integer_entry(self, proposed: str) -> bool:
         """Allow blank or non-negative integers."""
         if proposed == "":
@@ -451,33 +480,47 @@ class BearBufUI:
             # no bear calming $$ left, sell stocks
             return exps / calc.stock_price
 
+    def append_log_output(self, level: str, msg: str):
+        """Append log output to the UI log window."""
+        if self.log_text is None:
+            return
+
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        line = f"{timestamp} {level} - {msg}\n"
+
+        self.log_text.configure(state=tk.NORMAL)
+        self.log_text.insert(tk.END, line)
+        self.log_text.see(tk.END)
+        self.log_text.configure(state=tk.DISABLED)
 
     def log_err(self, msg):
         """Log an error message"""
         logger.error(msg)
+        self.append_log_output("ERROR", msg)
         messagebox.showerror("Error", msg)
 
     def log_msg(self, msg):
         """Log a message"""
         logger.info(msg)
+        self.append_log_output("INFO", msg)
 
     def log_results(self):
         """Log all results of a portfolio analysis"""
         try:
-            self.log_msg(f"Historical data range: {self.results["date_range"]}")
-            self.log_msg(f"Portfolio start value: {self.results["port_total_start"]:.2f}")
-            self.log_msg(f"Portfolio end value: {self.results["port_total_end"]:.2f}")
-            self.log_msg(f"Annual inflation rate: {self.results["inflation_annual"]}")
-            self.log_msg(f"Weekly inflation rate: {self.results["inflation_weekly"]:.8f}")
-            self.log_msg(f"Annual interest rate: {self.results["interest_annual"]}")
-            self.log_msg(f"Weekly interest rate: {self.results["interest_weekly"]:.8f}")
-            self.log_msg(f"Expense start: {self.results["expense_start"]:.2f}")
-            self.log_msg(f"Expense end: {self.results["expense_end"]:.2f}")
-            self.log_msg(f"Bear markets: {self.results["bear_num_total"]}")
-            self.log_msg(f"Bear market dates: {self.results["bear_dates"]}")
-            self.log_msg(f"Bear calm amount: {self.results["bear_calm"]:.2f}")
-            self.log_msg(f"Bear buf start: {self.results["bb_start"]:.2f}")
-            self.log_msg(f"Bear buf end: {self.results["bb_end"]:.2f}\n\n")
+            self.log_msg(f"Historical data range: {self.results['date_range']}")
+            self.log_msg(f"Portfolio start value: {self.results['port_total_start']:.2f}")
+            self.log_msg(f"Portfolio end value: {self.results['port_total_end']:.2f}")
+            self.log_msg(f"Annual inflation rate: {self.results['inflation_annual']}")
+            self.log_msg(f"Weekly inflation rate: {self.results['inflation_weekly']:.8f}")
+            self.log_msg(f"Annual interest rate: {self.results['interest_annual']}")
+            self.log_msg(f"Weekly interest rate: {self.results['interest_weekly']:.8f}")
+            self.log_msg(f"Expense start: {self.results['expense_start']:.2f}")
+            self.log_msg(f"Expense end: {self.results['expense_end']:.2f}")
+            self.log_msg(f"Bear markets: {self.results['bear_num_total']}")
+            self.log_msg(f"Bear market dates: {self.results['bear_dates']}")
+            self.log_msg(f"Bear calm amount: {self.results['bear_calm']:.2f}")
+            self.log_msg(f"Bear buf start: {self.results['bb_start']:.2f}")
+            self.log_msg(f"Bear buf end: {self.results['bb_end']:.2f}\n\n")
 
         except Exception as e:
             self.log_err(f"{type(e).__name__}: {e}")
@@ -705,8 +748,8 @@ class BearBufUI:
     def display_data(self, x_label, week_list, port_val_weekly_list):
         """Display the portfolio analysis data on the graph"""
         title = (
-            f"Portfolio start: {self.results["port_total_start"]:.2f} "
-            f"end: {self.results["port_total_end"]:.2f}"
+            f"Portfolio start: {self.results['port_total_start']:.2f} "
+            f"end: {self.results['port_total_end']:.2f}"
         )
 
         self.ax_portfolio.clear()
