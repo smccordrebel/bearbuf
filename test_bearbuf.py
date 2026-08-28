@@ -169,28 +169,28 @@ class TestBearMarketDetection(unittest.TestCase):
 class TestWeeklyExpenseCalculation(unittest.TestCase):
     def test_weekly_expense_stock_calc_without_bear_market(self):
         ui = make_ui()
-        weekly = bearbuf.WeeklyExpenses(100, 20, False, 500)
+        weekly = bearbuf.WeeklyCalcData(100, 20, False, 500)
 
         self.assertEqual(ui.weekly_expense_stock_calc(weekly), 5)
         self.assertEqual(weekly.bear_calm_fund, 500)
 
     def test_weekly_expense_stock_calc_uses_calm_fund_when_sufficient(self):
         ui = make_ui()
-        weekly = bearbuf.WeeklyExpenses(100, 20, True, 150)
+        weekly = bearbuf.WeeklyCalcData(100, 20, True, 150)
 
         self.assertEqual(ui.weekly_expense_stock_calc(weekly), 0)
         self.assertEqual(weekly.bear_calm_fund, 50)
 
     def test_weekly_expense_stock_calc_uses_partial_calm_fund(self):
         ui = make_ui()
-        weekly = bearbuf.WeeklyExpenses(100, 20, True, 40)
+        weekly = bearbuf.WeeklyCalcData(100, 20, True, 40)
 
         self.assertEqual(ui.weekly_expense_stock_calc(weekly), 3)
         self.assertEqual(weekly.bear_calm_fund, 0)
 
     def test_weekly_expense_stock_calc_sells_stock_when_calm_fund_depleted(self):
         ui = make_ui()
-        weekly = bearbuf.WeeklyExpenses(100, 20, True, 0)
+        weekly = bearbuf.WeeklyCalcData(100, 20, True, 0)
 
         self.assertEqual(ui.weekly_expense_stock_calc(weekly), 5)
         self.assertEqual(weekly.bear_calm_fund, 0)

@@ -242,6 +242,15 @@ class BearBufUI:
         )
         self.calculator_run_button.grid(row=0, column=0, sticky="ew", padx=2)
 
+        # auto run checkbox
+        self.auto_run_var = tk.BooleanVar(value=False)
+        self.auto_run_check = ttk.Checkbutton(
+            calculator_run_frame,
+            text="Auto Run",
+            variable=self.auto_run_var
+        )
+        self.auto_run_check.grid(row=0, column=1, sticky="ew", padx=2)
+
         # ------------------------------------------------------------------
         # Right panel
         # ------------------------------------------------------------------
@@ -396,8 +405,8 @@ class BearBufUI:
 
     def weekly_rate_from_annual(self, annual_rate: float) -> float:
         """Calculate a weekly rate from an annual rate"""
-        annual_rate /= 100
-        weekly_rate = annual_rate / 52
+        rate = annual_rate / 100
+        weekly_rate = (1 + rate) ** (1 / 52) - 1
         return weekly_rate
     
     def weekly_expense_stock_calc(self, calc:WeeklyCalcData):
@@ -676,7 +685,7 @@ class BearBufUI:
             x_label = f"Weeks from {self.stock_date[0]} to {self.stock_date[-1]}"
             self.display_data(x_label, week_list, port_val_weekly_list)
 
-            self.history_clear()
+            return self.results["port_total_end"]
 
         except Exception as e:
             self.log_err(f"{type(e).__name__}: {e}")
@@ -753,13 +762,33 @@ class BearBufUI:
         if not self.stock_date or not self.stock_value:
             return
 
-        self.analyze_historical_data(
+        port_end = self.analyze_historical_data(
             portfolio_start=portfolio_start,
             weekly_expense_start=weekly_expenses,
             annual_inflation_rate=annual_inflation_rate,
             annual_interest_rate=annual_interest_rate,
-            bear_calm_weeks=bear_calm_weeks
-        )
+            bear_calm_weeks=bear_calm_weeks)
+
+        self.log_msg(f"Final Port Value {port_end:.2f}")
+
+        if self.auto_run_var.get():
+            self.log_msg(f"Auto Run On!")
+        else:
+            self.log_msg(f"No Auto Run:(")
+
+        """
+        previous_port_end = 0
+        while previous_port_end < port_end:
+            previous_port_end = port_end
+            bear_calm_weeks += 1
+
+            port_end = self.analyze_historical_data(
+                        portfolio_start=portfolio_start,
+                        weekly_expense_start=weekly_expenses,
+                        annual_inflation_rate=annual_inflation_rate,
+                        annual_interest_rate=annual_interest_rate,
+                        bear_calm_weeks=bear_calm_weeks)
+        """
 
 def main():
     """Main entry point for the application."""
