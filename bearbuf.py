@@ -860,10 +860,10 @@ class BearBufUI:
 
                 bear_calm_weeks += 1
 
-        if bear_calm_weeks > BEAR_CALM_WEEK_MAX:
-            self.log_msg("Auto run stopped before finding maximum end portfolio")
-        else:
-            self.log_msg(f"Maximum portfolio of {port_end:.2f} found when bear calming weeks are {bear_calm_weeks}")
+            if bear_calm_weeks > BEAR_CALM_WEEK_MAX:
+                self.log_msg("Auto run stopped before finding maximum end portfolio")
+            else:
+                self.log_msg(f"Maximum portfolio of {port_end:.2f} found when bear calming weeks are {bear_calm_weeks}")
 
 def main():
     """Main entry point for the application."""
