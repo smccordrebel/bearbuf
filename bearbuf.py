@@ -10,11 +10,13 @@ to utilize a portfolio of stocks/bonds/cash.
 import csv
 import logging
 import tkinter as tk
-from datetime import datetime
+from tkinter import filedialog
 from tkinter import messagebox, ttk
 from dataclasses import dataclass
+from typing import Optional, TextIO
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
+from datetime import datetime
 
 __version__ = "0.1"
 
@@ -39,9 +41,7 @@ WINDOW_WIDTH = 1200
 WINDOW_HEIGHT = 700
 PLOT_X_LABEL = "Time (weeks)"
 PLOT_Y_LABEL = "Portfolio Value"
-PLOT_TITLE_FLOW = "Portfolio"
-
-HISTORICAL_FILENAME = "VTSAX_history.csv"
+PLOT_TITLE = "Portfolio"
 
 @dataclass
 class WeeklyCalcData:
@@ -49,9 +49,6 @@ class WeeklyCalcData:
     stock_price: float
     bear_active: bool
     bear_calm_fund: float
-
-
-
 
 # ============================================================================
 # Bear Buf UI Application
@@ -66,6 +63,7 @@ class BearBufUI:
         self.root.title("Bear Buf Calculator")
         self.root.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
 
+        self.input_file: Optional[TextIO] = None
         self.stock_date = []
         self.stock_value = []
         self.results = {}
@@ -152,8 +150,21 @@ class BearBufUI:
         calculator_frame.grid(row=0, column=0, sticky="ew", pady=5)
         calculator_frame.columnconfigure(0, weight=1)
 
+        file_input_frame = ttk.LabelFrame(calculator_frame, text="Input File", padding=8)
+        file_input_frame.grid(row=0, column=0, sticky="ew", pady=5)
+        file_input_frame.columnconfigure(0, weight=0)
+        file_input_frame.columnconfigure(1, weight=1)
+
+        self.file_input_button = ttk.Button(
+            file_input_frame,
+            text="Choose Input File",
+            command=self.on_file_button,
+            state=tk.NORMAL
+        )
+        self.file_input_button.grid(row=0, column=0, sticky="ew", padx=2)
+
         inputs_frame = ttk.LabelFrame(calculator_frame, text="Inputs", padding=8)
-        inputs_frame.grid(row=0, column=0, sticky="ew", pady=5)
+        inputs_frame.grid(row=1, column=0, sticky="ew", pady=5)
         inputs_frame.columnconfigure(0, weight=0)
         inputs_frame.columnconfigure(1, weight=1)
 
@@ -231,7 +242,7 @@ class BearBufUI:
         self.bear_calm_weeks_entry.grid(row=4, column=1, sticky="ew", pady=4)
 
         calculator_run_frame = ttk.Frame(calculator_frame)
-        calculator_run_frame.grid(row=1, column=0, sticky="ew", pady=4)
+        calculator_run_frame.grid(row=2, column=0, sticky="ew", pady=4)
         calculator_run_frame.columnconfigure(0, weight=1)
 
         self.calculator_run_button = ttk.Button(
@@ -313,7 +324,7 @@ class BearBufUI:
         self.ax_portfolio = self.figure_portfolio.add_subplot(111)
         self.ax_portfolio.set_xlabel(PLOT_X_LABEL)
         self.ax_portfolio.set_ylabel(PLOT_Y_LABEL)
-        self.ax_portfolio.set_title(PLOT_TITLE_FLOW)
+        self.ax_portfolio.set_title(PLOT_TITLE)
         self.ax_portfolio.grid(True, alpha=0.3)
 
         self.canvas_portfolio = FigureCanvasTkAgg(
@@ -723,7 +734,11 @@ class BearBufUI:
         try:
             self.history_clear()
 
-            with open(HISTORICAL_FILENAME, newline="", encoding="utf-8") as f:
+            if not self.input_file:
+                self.log_err("No input file chosen")
+                return
+
+            with open(self.input_file, newline="", encoding="utf-8") as f:
                 reader = csv.reader(f)
                 for row in reader:
                     if not row:
@@ -739,10 +754,26 @@ class BearBufUI:
         except Exception:
             self.history_clear()
             self.log_err((
-                f"Error when reading historical data from {HISTORICAL_FILENAME}. "
+                f"Error when reading historical data from {self.input_file}. "
                 "Verify the file exists and contains valid date/value rows."
             ))
 
+    def on_file_button(self):
+        """Choose the input that holds dates and stock prices"""
+        file_path = self.input_file_get()
+        if file_path:
+            self.input_file = file_path
+        else:
+            self.log_err("No file selected")
+
+    def input_file_get(self):
+        """Display a dialogue for file input"""
+        file_path = filedialog.askopenfilename(
+                    title="Select a file",
+                    filetypes=[("CSV Files", "*.csv")]
+        )
+        return file_path
+    
     def on_calculator_run(self):
         """Run the calculator and display results."""
         try:
