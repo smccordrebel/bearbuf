@@ -42,7 +42,7 @@ WINDOW_HEIGHT = 700
 PLOT_X_LABEL = "Time (weeks)"
 PLOT_Y_LABEL = "Portfolio Value"
 PLOT_TITLE = "Portfolio"
-BEAR_CALM_WEEK_MAX = 52
+CALM_WEEK_MAX = 1000
 
 @dataclass
 class WeeklyCalcData:
@@ -609,7 +609,8 @@ class BearBufUI:
         weekly_expense_start: float,
         annual_inflation_rate: float,
         annual_interest_rate: float,
-        bear_calm_weeks: float
+        bear_calm_weeks: float,
+        log_results=True
     ):
         """
         Calculate a portfolio value over time, by evaluating every week and
@@ -734,11 +735,12 @@ class BearBufUI:
             self.results["expense_end"] = weekly_expense_val
             self.results["port_total_end"] = port_val_weekly_list[-1]
 
-            self.log_results()
+            if log_results:
+                self.log_results()
 
-            # display the data on the plot
-            x_label = f"Weeks from {self.stock_date[0]} to {self.stock_date[-1]}"
-            self.display_data(x_label, week_list, port_val_weekly_list)
+                # display the data on the plot
+                x_label = f"Weeks from {self.stock_date[0]} to {self.stock_date[-1]}"
+                self.display_data(x_label, week_list, port_val_weekly_list)
 
             return self.results["port_total_end"]
 
@@ -837,33 +839,49 @@ class BearBufUI:
         if not self.stock_date or not self.stock_value:
             return
 
-        port_end_previous = 0
-        port_end = self.analyze_historical_data(
-            portfolio_start=portfolio_start,
-            weekly_expense_start=weekly_expenses,
-            annual_inflation_rate=annual_inflation_rate,
-            annual_interest_rate=annual_interest_rate,
-            bear_calm_weeks=bear_calm_weeks)
+        if not self.auto_run_var.get():
+            # run a single pass and display the results on the plot
+            self.analyze_historical_data(
+                portfolio_start=portfolio_start,
+                weekly_expense_start=weekly_expenses,
+                annual_inflation_rate=annual_inflation_rate,
+                annual_interest_rate=annual_interest_rate,
+                bear_calm_weeks=bear_calm_weeks,
+                log_results=True)
 
-        if self.auto_run_var.get():
-            bear_calm_weeks = 1
-            while ((bear_calm_weeks <= BEAR_CALM_WEEK_MAX) 
-                   and (port_end > port_end_previous)):
+        else:
+            # evaluate the portfolio with different bear calming weeks to 
+            # determine the largest final portfolio
+            calm_weeks = 0
+            port_end_previous = 0
+            port_end = 1
+
+            while (calm_weeks <= CALM_WEEK_MAX):
                 
-                port_end_previous = port_end
                 port_end = self.analyze_historical_data(
                     portfolio_start=portfolio_start,
                     weekly_expense_start=weekly_expenses,
                     annual_inflation_rate=annual_inflation_rate,
                     annual_interest_rate=annual_interest_rate,
-                    bear_calm_weeks=bear_calm_weeks)
+                    bear_calm_weeks=calm_weeks,
+                    log_results=False)
 
-                bear_calm_weeks += 1
+                if port_end > port_end_previous:
+                    port_end_previous = port_end
+                    calm_weeks += 1
+                else:
+                    # use the previous # of calm weeks, it resulted in a higher ending portfolio
+                    if calm_weeks > 0:
+                        calm_weeks -= 1
 
-            if bear_calm_weeks > BEAR_CALM_WEEK_MAX:
+                    break
+
+            if calm_weeks > CALM_WEEK_MAX:
                 self.log_msg("Auto run stopped before finding maximum end portfolio")
             else:
-                self.log_msg(f"Maximum portfolio of {port_end:.2f} found when bear calming weeks are {bear_calm_weeks}")
+                msg = f"Maximum portfolio of {port_end:.2f}"
+                msg += f" found when bear calming weeks are {calm_weeks}"
+                self.log_msg(msg)
 
 def main():
     """Main entry point for the application."""
