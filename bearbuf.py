@@ -879,6 +879,14 @@ class BearBufUI:
             if calm_weeks > CALM_WEEK_MAX:
                 self.log_msg("Auto run stopped before finding maximum end portfolio")
             else:
+                self.analyze_historical_data(
+                                portfolio_start=portfolio_start,
+                                weekly_expense_start=weekly_expenses,
+                                annual_inflation_rate=annual_inflation_rate,
+                                annual_interest_rate=annual_interest_rate,
+                                bear_calm_weeks=calm_weeks,
+                                log_results=True)
+                
                 msg = f"Maximum portfolio of {port_end:.2f}"
                 msg += f" found when bear calming weeks are {calm_weeks}"
                 self.log_msg(msg)
