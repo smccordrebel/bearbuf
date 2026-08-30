@@ -42,7 +42,7 @@ WINDOW_HEIGHT = 700
 PLOT_X_LABEL = "Time (weeks)"
 PLOT_Y_LABEL = "Portfolio Value"
 PLOT_TITLE = "Portfolio"
-CALM_WEEK_MAX = 1000
+CALM_WEEK_MAX = 500
 
 @dataclass
 class WeeklyCalcData:
@@ -189,12 +189,16 @@ class BearBufUI:
         ttk.Label(inputs_frame, text="Bear Calm Weeks").grid(
             row=4, column=0, sticky="w", padx=(0, 10), pady=4
         )
+        ttk.Label(inputs_frame, text="Bear Market Number").grid(
+            row=5, column=0, sticky="w", padx=(0, 10), pady=4
+        )
 
         self.portfolio_start_val = tk.StringVar(value="2000000")
         self.weekly_expenses_val = tk.StringVar(value="1800")
         self.annual_inflation_rate_val = tk.StringVar(value="3")
         self.annual_interest_rate_val = tk.StringVar(value="1")
         self.bear_calm_weeks_val = tk.StringVar(value="0")
+        self.bear_market_num_val = tk.StringVar(value="0")
 
         vcmd_int = (self.root.register(self.validate_integer_entry), "%P")
         vcmd_float = (self.root.register(self.validate_float_entry), "%P")
@@ -231,10 +235,17 @@ class BearBufUI:
             validate="key",
             validatecommand=vcmd_float
         )
-
         self.bear_calm_weeks_entry = ttk.Entry(
             inputs_frame,
             textvariable=self.bear_calm_weeks_val,
+            width=14,
+            justify=tk.RIGHT,
+            validate="key",
+            validatecommand=vcmd_float
+        )
+        self.bear_market_num_entry = ttk.Entry(
+            inputs_frame,
+            textvariable=self.bear_market_num_val,
             width=14,
             justify=tk.RIGHT,
             validate="key",
@@ -246,6 +257,7 @@ class BearBufUI:
         self.annual_inflation_rate_entry.grid(row=2, column=1, sticky="ew", pady=4)
         self.annual_interest_rate_entry.grid(row=3, column=1, sticky="ew", pady=4)
         self.bear_calm_weeks_entry.grid(row=4, column=1, sticky="ew", pady=4)
+        self.bear_market_num_entry.grid(row=5, column=1, sticky="ew", pady=4)
 
         calculator_run_frame = ttk.Frame(calculator_frame)
         calculator_run_frame.grid(row=2, column=0, sticky="ew", pady=4)
@@ -435,13 +447,19 @@ class BearBufUI:
             "Bear Calm Amount",
             allow_zero=True
         )
+        bear_market_num = self.parse_positive_number(
+            self.bear_market_num_val.get(),
+            "Bear Market Num",
+            allow_zero=True
+        )
 
         return (
             portfolio_start,
             weekly_expenses,
             annual_inflation_rate,
             annual_interest_rate,
-            bear_calm_weeks
+            bear_calm_weeks,
+            bear_market_num
         )
 
     def weekly_rate_from_annual(self, annual_rate: float) -> float:
@@ -610,6 +628,7 @@ class BearBufUI:
         annual_inflation_rate: float,
         annual_interest_rate: float,
         bear_calm_weeks: float,
+        bear_market_num: float,
         log_results=True
     ):
         """
@@ -630,14 +649,16 @@ class BearBufUI:
 
             # analyze the data for bear markets
             bear_start_list = [False] * len(stock_val_list)
-            bear_market_num = self.bear_start_analyze(stock_val_list, bear_start_list)
+            self.bear_start_analyze(stock_val_list, bear_start_list)
 
-            # calculate the total bear buf (bear_calm_funds * bear_market_num)
+            # calculate the total bear buf (bear calm funds * bear num chosen on UI)
             bear_buf_start = bear_market_num * bear_calm_fund_start
             bear_buf_val = bear_buf_start
 
             if bear_buf_val > portfolio_start:
-                self.log_err("Not enough $$ in portfolio to fund the bear buf")
+                msg = f"Not enough $$ in portfolio to fund the bear buf. "
+                msg += f"Funds needed: calm weeks {bear_calm_weeks}, total {bear_buf_val}"
+                self.log_err(msg)
                 return
 
             # the bear buf is funded through the portfolio, deduct that money
@@ -660,13 +681,13 @@ class BearBufUI:
             self.results["bear_calm"] = bear_calm_fund_start
             self.results["bear_num_total"] = bear_market_num
 
-            # for every week, determine how many stocks need to be sold for expenses
             port_val_weekly_list = [weekly_port_val]
             bear_active = False
             bear_start_dates = []
             bear_remaining = bear_market_num
             bear_calm_fund = 0
 
+            # for every week, determine how many stocks need to be sold for expenses
             for week in week_list[1:]:
                 # if a bear start is detected, expenses are paid from
                 # the bear calm fund until it is depleted
@@ -828,7 +849,8 @@ class BearBufUI:
                 weekly_expenses,
                 annual_inflation_rate,
                 annual_interest_rate,
-                bear_calm_weeks
+                bear_calm_weeks,
+                bear_market_num
             ) = self.validate_inputs()
         except ValueError as exc:
             self.log_err(str(exc))
@@ -847,6 +869,7 @@ class BearBufUI:
                 annual_inflation_rate=annual_inflation_rate,
                 annual_interest_rate=annual_interest_rate,
                 bear_calm_weeks=bear_calm_weeks,
+                bear_market_num=bear_market_num,
                 log_results=True)
 
         else:
@@ -864,9 +887,10 @@ class BearBufUI:
                     annual_inflation_rate=annual_inflation_rate,
                     annual_interest_rate=annual_interest_rate,
                     bear_calm_weeks=calm_weeks,
+                    bear_market_num=bear_market_num,
                     log_results=False)
 
-                if port_end > port_end_previous:
+                if port_end >= port_end_previous:
                     port_end_previous = port_end
                     calm_weeks += 1
                 else:
@@ -877,6 +901,8 @@ class BearBufUI:
                     break
 
             if calm_weeks > CALM_WEEK_MAX:
+                msg = f"Auto run stopped before finding optimal calming weeks."
+                msg += f" End portfolio {port_end:.2f}, end calming weeks {calm_weeks}"
                 self.log_msg("Auto run stopped before finding maximum end portfolio")
             else:
                 self.analyze_historical_data(
@@ -885,6 +911,7 @@ class BearBufUI:
                                 annual_inflation_rate=annual_inflation_rate,
                                 annual_interest_rate=annual_interest_rate,
                                 bear_calm_weeks=calm_weeks,
+                                bear_market_num=bear_market_num,
                                 log_results=True)
                 
                 msg = f"Maximum portfolio of {port_end:.2f}"
