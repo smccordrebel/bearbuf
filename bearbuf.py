@@ -3,7 +3,7 @@
 """
 Bearbuf Calculator UI Module.
 
-Look at the historical data for VTSAX and analyze bear starts and how
+Look at the historical data for stocks and analyze bear starts and how
 to utilize a portfolio of stocks/bonds/cash.
 """
 
@@ -64,7 +64,7 @@ class BearBufUI:
         self.root.title("Bear Buf Calculator")
         self.root.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
 
-        self.input_file: Optional[TextIO] = None
+        self.input_file: Optional[str] = None
         self.stock_date = []
         self.stock_value = []
         self.results = {}
@@ -193,7 +193,7 @@ class BearBufUI:
             row=5, column=0, sticky="w", padx=(0, 10), pady=4
         )
 
-        self.portfolio_start_val = tk.StringVar(value="2000000")
+        self.portfolio_start_val = tk.StringVar(value="2500000")
         self.weekly_expenses_val = tk.StringVar(value="1800")
         self.annual_inflation_rate_val = tk.StringVar(value="3")
         self.annual_interest_rate_val = tk.StringVar(value="1")
@@ -602,10 +602,6 @@ class BearBufUI:
 
         if any(value <= 0 for value in stock_val_list):
             self.log_err("Historical stock values must be greater than 0.")
-            return [], []
-
-        if len(week_list) != len(stock_val_list):
-            self.log_err("Stock date and stock value lists are not the same length")
             return [], []
 
         return week_list, stock_val_list
