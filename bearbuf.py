@@ -196,8 +196,8 @@ class BearBufUI:
             row=5, column=0, sticky="w", padx=(0, 10), pady=4
         )
 
-        self.portfolio_start_val = tk.StringVar(value="2500000")
-        self.weekly_expenses_val = tk.StringVar(value="1800")
+        self.portfolio_start_val = tk.StringVar(value="2000000")
+        self.weekly_expenses_val = tk.StringVar(value="2000")
         self.annual_inflation_rate_val = tk.StringVar(value="3")
         self.annual_interest_rate_val = tk.StringVar(value="1")
         self.bear_calm_weeks_val = tk.StringVar(value="0")
@@ -657,9 +657,7 @@ class BearBufUI:
 
             # analyze the data for bear markets
             bear_start_list = [False] * len(stock_val_list)
-            bear_detected = self.bear_start_analyze(stock_val_list, bear_start_list)
-            if bear_detected is None:
-                return
+            self.bear_start_analyze(stock_val_list, bear_start_list)
 
             # calculate the total bear buf (bear calm funds * bear num chosen on UI)
             bear_buf_start = bear_market_num * bear_calm_fund_start
