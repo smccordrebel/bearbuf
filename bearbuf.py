@@ -531,6 +531,8 @@ class BearBufUI:
         """
         window_values = stock_val_list[start:end]
         high_val = max(window_values)
+        if high_val <= 0:
+            raise ValueError("Stock price <= 0!")
         high_index = start + window_values.index(high_val)
         drop_val = high_val * (1 - BEAR_MARKET_DROP_THRESHOLD)
 
@@ -557,7 +559,11 @@ class BearBufUI:
         start = 0
         end = start + BEAR_MARKET_LOOK_BACK_WEEKS + 1
         while end <= len(stock_val_list):
-            bear_start_index = self._find_bear_drop_start(stock_val_list, start, end)
+            try:
+                bear_start_index = self._find_bear_drop_start(stock_val_list, start, end)
+            except ValueError as exc:
+                self.log_err(str(exc))
+                return None
             if bear_start_index is not None:
                 bear_start_list[bear_start_index] = True
                 bear_num += 1
@@ -813,7 +819,7 @@ class BearBufUI:
                     stock_value = row[1].strip()
                     if not date:
                         raise ValueError("Historical data row date cannot be blank.")
-                    if stock_value == "":
+                    if not stock_value:
                         raise ValueError("Historical data row value cannot be blank.")
                     parsed_value = float(stock_value)
                     if not math.isfinite(parsed_value):
