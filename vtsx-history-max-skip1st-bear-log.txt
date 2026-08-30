@@ -1,0 +1,17 @@
+2026-08-30 13:56:02 INFO - Historical data range: 9/28/2001 to 8/20/2026
+2026-08-30 13:56:02 INFO - Portfolio start value: 2000000.00
+2026-08-30 13:56:02 INFO - Portfolio end value: 892215.82
+2026-08-30 13:56:02 INFO - Annual inflation rate: 3.0
+2026-08-30 13:56:02 INFO - Weekly inflation rate: 0.00056860
+2026-08-30 13:56:02 INFO - Annual interest rate: 1.0
+2026-08-30 13:56:02 INFO - Weekly interest rate: 0.00019137
+2026-08-30 13:56:02 INFO - Expense start: 2000.00
+2026-08-30 13:56:02 INFO - Expense end: 4185.18
+2026-08-30 13:56:02 INFO - Bear markets: 4.0
+2026-08-30 13:56:02 INFO - Bear market dates: ['7/19/2002', '10/10/2008', '2/27/2009', '3/13/2020']
+2026-08-30 13:56:02 INFO - Bear calm amount: 8000.00
+2026-08-30 13:56:02 INFO - Bear buf start: 32000.00
+2026-08-30 13:56:02 INFO - Bear buf end: 1.81
+
+
+2026-08-30 13:56:02 INFO - Maximum portfolio of 891012.31 found when bear calming weeks are 4 total weeks 16.00
