@@ -912,6 +912,7 @@ class BearBufUI:
                 
                 msg = f"Maximum portfolio of {port_end:.2f}"
                 msg += f" found when bear calming weeks are {calm_weeks}"
+                msg += f" total weeks {calm_weeks*bear_market_num:.2f}"
                 self.log_msg(msg)
 
 def main():
