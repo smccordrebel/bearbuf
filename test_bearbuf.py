@@ -17,9 +17,12 @@ def install_gui_stubs():
 
     messagebox = types.ModuleType("tkinter.messagebox")
     messagebox.showerror = Mock()
+    filedialog = types.ModuleType("tkinter.filedialog")
+    filedialog.askopenfilename = Mock(return_value="")
 
     tkinter.ttk = ttk
     tkinter.messagebox = messagebox
+    tkinter.filedialog = filedialog
 
     backend_tkagg = types.ModuleType("matplotlib.backends.backend_tkagg")
     backend_tkagg.FigureCanvasTkAgg = type("FigureCanvasTkAgg", (), {})
@@ -30,6 +33,7 @@ def install_gui_stubs():
     sys.modules["tkinter"] = tkinter
     sys.modules["tkinter.ttk"] = ttk
     sys.modules["tkinter.messagebox"] = messagebox
+    sys.modules["tkinter.filedialog"] = filedialog
     sys.modules["matplotlib.backends.backend_tkagg"] = backend_tkagg
     sys.modules["matplotlib.figure"] = figure_module
 
@@ -42,6 +46,7 @@ bearbuf = importlib.import_module("bearbuf")
 
 def make_ui():
     ui = object.__new__(bearbuf.BearBufUI)
+    ui.input_file = "/tmp/mock.csv"
     ui.stock_date = []
     ui.stock_value = []
     ui.results = {}
@@ -232,6 +237,17 @@ class TestStockListProcessing(unittest.TestCase):
             "Stock date and stock value lists are not the same length"
         )
 
+    def test_stock_lists_get_errors_for_non_numeric_prices(self):
+        self.ui.stock_date = ["2024-01-01", "2024-01-08"]
+        self.ui.stock_value = ["100", "bad-data"]
+
+        weeks, values = self.ui.stock_lists_get()
+
+        self.assertEqual((weeks, values), ([], []))
+        self.ui.log_err.assert_called_once_with(
+            "Historical stock values must be valid numbers."
+        )
+
 
 class TestHistoricalDataRead(unittest.TestCase):
     def setUp(self):
@@ -264,6 +280,17 @@ class TestHistoricalDataRead(unittest.TestCase):
         self.assertEqual(self.ui.stock_date, [])
         self.assertEqual(self.ui.stock_value, [])
         self.ui.log_err.assert_called_once()
+
+    def test_historical_data_read_handles_blank_date_or_value(self):
+        for csv_data in (" ,100\n", "2024-01-01,\n"):
+            with self.subTest(csv_data=csv_data):
+                self.ui.log_err.reset_mock()
+                with patch("builtins.open", mock_open(read_data=csv_data)):
+                    self.ui.historical_data_read()
+
+                self.assertEqual(self.ui.stock_date, [])
+                self.assertEqual(self.ui.stock_value, [])
+                self.ui.log_err.assert_called_once()
 
 
 if __name__ == "__main__":

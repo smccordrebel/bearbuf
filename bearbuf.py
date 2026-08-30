@@ -9,6 +9,7 @@ to utilize a portfolio of stocks/bonds/cash.
 
 import csv
 import logging
+import math
 import tkinter as tk
 from tkinter import filedialog
 from tkinter import messagebox, ttk
@@ -43,6 +44,8 @@ PLOT_X_LABEL = "Time (weeks)"
 PLOT_Y_LABEL = "Portfolio Value"
 PLOT_TITLE = "Portfolio"
 CALM_WEEK_MAX = 500
+BEAR_MARKET_LOOK_BACK_WEEKS = 10
+BEAR_MARKET_DROP_THRESHOLD = 0.20
 
 @dataclass
 class WeeklyCalcData:
@@ -410,7 +413,7 @@ class BearBufUI:
 
         try:
             number = float(value)
-        except ValueError as exc:
+        except (TypeError, ValueError) as exc:
             raise ValueError(f"{field_name} must be a valid number.") from exc
 
         if allow_zero:
@@ -424,43 +427,20 @@ class BearBufUI:
 
     def validate_inputs(self):
         """Validate all user inputs and return parsed numeric values."""
-        portfolio_start = self.parse_positive_number(
-            self.portfolio_start_val.get(),
-            "Starting Portfolio"
-        )
-        weekly_expenses = self.parse_positive_number(
-            self.weekly_expenses_val.get(),
-            "Weekly Expenses"
-        )
-        annual_inflation_rate = self.parse_positive_number(
-            self.annual_inflation_rate_val.get(),
-            "Annual Inflation Rate",
-            allow_zero=True
-        )
-        annual_interest_rate = self.parse_positive_number(
-            self.annual_interest_rate_val.get(),
-            "Annual Interest Rate",
-            allow_zero=True
-        )
-        bear_calm_weeks = self.parse_positive_number(
-            self.bear_calm_weeks_val.get(),
-            "Bear Calm Amount",
-            allow_zero=True
-        )
-        bear_market_num = self.parse_positive_number(
-            self.bear_market_num_val.get(),
-            "Bear Market Num",
-            allow_zero=True
+        fields = (
+            (self.portfolio_start_val.get(), "Starting Portfolio", False),
+            (self.weekly_expenses_val.get(), "Weekly Expenses", False),
+            (self.annual_inflation_rate_val.get(), "Annual Inflation Rate", True),
+            (self.annual_interest_rate_val.get(), "Annual Interest Rate", True),
+            (self.bear_calm_weeks_val.get(), "Bear Calm Amount", True),
+            (self.bear_market_num_val.get(), "Bear Market Num", True),
         )
 
-        return (
-            portfolio_start,
-            weekly_expenses,
-            annual_inflation_rate,
-            annual_interest_rate,
-            bear_calm_weeks,
-            bear_market_num
-        )
+        parsed_values = [
+            self.parse_positive_number(value, field_name, allow_zero=allow_zero)
+            for value, field_name, allow_zero in fields
+        ]
+        return tuple(parsed_values)
 
     def weekly_rate_from_annual(self, annual_rate: float) -> float:
         """Calculate a weekly rate from an annual rate"""
@@ -544,14 +524,30 @@ class BearBufUI:
             self.log_err(f"{type(e).__name__}: {e}")
                       
 
+    def _find_bear_drop_start(self, stock_val_list, start, end):
+        """
+        Return the index where a bear market starts in the current analysis
+        window, or None if no start is found.
+        """
+        window_values = stock_val_list[start:end]
+        high_val = max(window_values)
+        if high_val <= 0:
+            raise ValueError("Stock price <= 0!")
+        high_index = start + window_values.index(high_val)
+        drop_val = high_val * (1 - BEAR_MARKET_DROP_THRESHOLD)
+
+        for index in range(high_index, end):
+            if stock_val_list[index] <= drop_val:
+                return index
+
+        return None
+
     def bear_start_analyze(self, stock_val_list, bear_start_list):
         """
         Analyze the stock prices and detect a bear market start:
             - 20% drop in price from recent 10 week highs.
 
         """
-        BEAR_MARKET_LOOK_BACK_WEEKS=10
-
         # initialize the bear start list to all False
         bear_start_list[:] = [False] * len(bear_start_list)
 
@@ -562,43 +558,37 @@ class BearBufUI:
         bear_num = 0
         start = 0
         end = start + BEAR_MARKET_LOOK_BACK_WEEKS + 1
-        while(end <= len(stock_val_list)):
-
-            # find the high stock price in the look back period
-            high_val = 0.0
-            high_index = start
-            for index in range(start, end):
-                if (stock_val_list[index] > high_val):
-                    high_val = stock_val_list[index]
-                    high_index = index
-
-            if high_val <= 0.0:
-                self.log_err("Stock price <= 0!")
-                return
-
-            # compare stock values to the high price and detect a 20% drop
-            bear_found = False
-            drop_val = high_val - (high_val * 0.20)
-            for index in range(high_index, end):
-                if (stock_val_list[index] <= drop_val):
-                    bear_start_list[index] = True
-                    bear_found = True
-                    bear_num += 1
-                    start = index + 1
-                    end = start + BEAR_MARKET_LOOK_BACK_WEEKS + 1
-                    break
-
-            if not bear_found:
+        while end <= len(stock_val_list):
+            try:
+                bear_start_index = self._find_bear_drop_start(stock_val_list, start, end)
+            except ValueError as exc:
+                self.log_err(str(exc))
+                return None
+            if bear_start_index is not None:
+                bear_start_list[bear_start_index] = True
+                bear_num += 1
+                start = bear_start_index + 1
+            else:
                 start += 1
-                end = start + BEAR_MARKET_LOOK_BACK_WEEKS + 1
+
+            end = start + BEAR_MARKET_LOOK_BACK_WEEKS + 1
 
         return bear_num
 
     def stock_lists_get(self):
+        """Return weekly index and stock-value lists for analysis."""
+        if len(self.stock_date) != len(self.stock_value):
+            self.log_err("Stock date and stock value lists are not the same length")
+            return [], []
+
         # create lists of the weekly dates and weekly stock prices
         # that were read from the input file
         week_list = list(range(len(self.stock_date)))
-        stock_val_list = [float(val) for val in self.stock_value]
+        try:
+            stock_val_list = [float(val) for val in self.stock_value]
+        except (TypeError, ValueError):
+            self.log_err("Historical stock values must be valid numbers.")
+            return [], []
 
         if any(value <= 0 for value in stock_val_list):
             self.log_err("Historical stock values must be greater than 0.")
@@ -616,6 +606,28 @@ class BearBufUI:
             num_remaining = 0
 
         return num_remaining, bear_calm
+
+    def _initialize_analysis_results(
+        self,
+        portfolio_start,
+        annual_inflation_rate,
+        weekly_inflation_rate,
+        annual_interest_rate,
+        weekly_interest_rate,
+        weekly_expense_start,
+        bear_calm_fund_start,
+        bear_market_num
+    ):
+        """Populate self.results with common metadata for each analysis run."""
+        self.results["date_range"] = f"{self.stock_date[0]} to {self.stock_date[-1]}"
+        self.results["port_total_start"] = portfolio_start
+        self.results["inflation_annual"] = annual_inflation_rate
+        self.results["inflation_weekly"] = weekly_inflation_rate
+        self.results["interest_annual"] = annual_interest_rate
+        self.results["interest_weekly"] = weekly_interest_rate
+        self.results["expense_start"] = weekly_expense_start
+        self.results["bear_calm"] = bear_calm_fund_start
+        self.results["bear_num_total"] = bear_market_num
     
     def analyze_historical_data(
         self,
@@ -645,7 +657,9 @@ class BearBufUI:
 
             # analyze the data for bear markets
             bear_start_list = [False] * len(stock_val_list)
-            self.bear_start_analyze(stock_val_list, bear_start_list)
+            bear_detected = self.bear_start_analyze(stock_val_list, bear_start_list)
+            if bear_detected is None:
+                return
 
             # calculate the total bear buf (bear calm funds * bear num chosen on UI)
             bear_buf_start = bear_market_num * bear_calm_fund_start
@@ -666,16 +680,16 @@ class BearBufUI:
             weekly_port_val = portfolio_start
             weekly_inflation_rate = self.weekly_rate_from_annual(annual_inflation_rate)
             weekly_interest_rate = self.weekly_rate_from_annual(annual_interest_rate)
-
-            self.results["date_range"] = f"{self.stock_date[0]} to {self.stock_date[-1]}"
-            self.results["port_total_start"] = portfolio_start
-            self.results["inflation_annual"] = annual_inflation_rate
-            self.results["inflation_weekly"] = weekly_inflation_rate
-            self.results["interest_annual"] = annual_interest_rate
-            self.results["interest_weekly"] = weekly_interest_rate
-            self.results["expense_start"] = weekly_expense_start
-            self.results["bear_calm"] = bear_calm_fund_start
-            self.results["bear_num_total"] = bear_market_num
+            self._initialize_analysis_results(
+                portfolio_start=portfolio_start,
+                annual_inflation_rate=annual_inflation_rate,
+                weekly_inflation_rate=weekly_inflation_rate,
+                annual_interest_rate=annual_interest_rate,
+                weekly_interest_rate=weekly_interest_rate,
+                weekly_expense_start=weekly_expense_start,
+                bear_calm_fund_start=bear_calm_fund_start,
+                bear_market_num=bear_market_num
+            )
 
             port_val_weekly_list = [weekly_port_val]
             bear_active = False
@@ -687,26 +701,18 @@ class BearBufUI:
             for week in week_list[1:]:
                 # if a bear start is detected, expenses are paid from
                 # the bear calm fund until it is depleted
-                if not bear_active:
-                    bear_active = bear_start_list[week]
+                if bear_start_list[week]:
+                    bear_active = True
+                    bear_start_dates.append(self.stock_date[week])
+                    bear_remaining, bear_calm_fund = self.bear_calm_funds_refresh(
+                        bear_remaining,
+                        bear_buf_val,
+                        bear_calm_fund
+                    )
 
-                    if bear_active:
-                        bear_start_dates.append(self.stock_date[week])
-                        bear_remaining, bear_calm_fund = self.bear_calm_funds_refresh(bear_remaining,
-                                                                                    bear_buf_val, 
-                                                                                    bear_calm_fund)
-                else:
-                    # check to see if another bear market has triggered while 
-                    # we are using bear calming funds
-                    if bear_start_list[week]:
-                        bear_start_dates.append(self.stock_date[week])
-                        bear_remaining, bear_calm_fund = self.bear_calm_funds_refresh(bear_remaining,
-                                                                                    bear_buf_val, 
-                                                                                    bear_calm_fund)
-
-                    if bear_calm_fund <= 0:
-                        bear_calm_fund = 0
-                        bear_active = False
+                if bear_active and bear_calm_fund <= 0:
+                    bear_calm_fund = 0
+                    bear_active = False
 
                 calc = WeeklyCalcData(expenses=weekly_expense_val,
                                       stock_price=stock_val_list[week],
@@ -725,7 +731,7 @@ class BearBufUI:
                     bear_buf_val -= (bear_calm_fund - calc.bear_calm_fund)
 
                 bear_calm_fund = calc.bear_calm_fund
-                interest = bear_buf_val * weekly_interest_rate 
+                interest = bear_buf_val * weekly_interest_rate
                 bear_buf_val += interest
 
                 weekly_port_val = (stock_num_remaining * stock_val_list[week]) + bear_buf_val
@@ -742,7 +748,7 @@ class BearBufUI:
                 return
 
             # log the results of the analysis
-            if bear_start_dates != []:
+            if bear_start_dates:
                 self.results["bear_dates"] = bear_start_dates
             else:
                 self.results["bear_dates"] = "None"
@@ -809,13 +815,22 @@ class BearBufUI:
                     if len(row) < 2:
                         raise ValueError("Historical data row must have a date and value.")
 
-                    # Validate the stock value before storing the CSV row.
-                    float(row[1])
-                    self.stock_date.append(row[0])
-                    self.stock_value.append(row[1])
+                    date = row[0].strip()
+                    stock_value = row[1].strip()
+                    if not date:
+                        raise ValueError("Historical data row date cannot be blank.")
+                    if not stock_value:
+                        raise ValueError("Historical data row value cannot be blank.")
+                    parsed_value = float(stock_value)
+                    if not math.isfinite(parsed_value):
+                        raise ValueError("Historical data row value must be finite.")
 
-        except Exception:
+                    self.stock_date.append(date)
+                    self.stock_value.append(stock_value)
+
+        except Exception as exc:
             self.history_clear()
+            logger.error("Historical data read failed for %s: %s", self.input_file, exc)
             self.log_err((
                 f"Error when reading historical data from {self.input_file}. "
                 "Verify the file exists and contains valid date/value rows."
