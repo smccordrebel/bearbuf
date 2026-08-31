@@ -792,14 +792,9 @@ class BearBufUI:
                 self.results["expense_end"]      = weekly_expense_val
                 self.results["port_total_end"]   = port_val_weekly_list[-1]
 
-                if bear_starts:
-                    dates = []
-                    for index in range(len(bear_starts)):
-                        dates.append(bear_starts[index].start_date)
-
-                    self.results["bear_dates"]   = dates
-                else:
-                    self.results["bear_dates"]   = "None"
+                self.results["bear_dates"] = [
+                    item.start_date for item in (bear_starts or []) if hasattr(item, "start_date")
+                ]
                   
                 self.log_results()
 
