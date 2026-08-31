@@ -259,7 +259,7 @@ class BearBufUI:
             width=14,
             justify=tk.RIGHT,
             validate="key",
-            validatecommand=vcmd_float
+            validatecommand=vcmd_int
         )
         self.bear_market_num_entry = ttk.Entry(
             inputs_frame,
@@ -267,7 +267,7 @@ class BearBufUI:
             width=14,
             justify=tk.RIGHT,
             validate="key",
-            validatecommand=vcmd_float
+            validatecommand=vcmd_int
         )
 
         self.portfolio_start_entry.grid(row=0, column=1, sticky="ew", pady=4)
@@ -572,7 +572,7 @@ class BearBufUI:
         # initialize the bear start list to all False
         bear_start_list[:] = [False] * len(bear_start_list)
 
-        if any(value <= 0 for value in stock_val_list):
+        if any(value <= 0.0 for value in stock_val_list):
             self.log_err("Stock price <= 0!")
             return None
 
@@ -659,19 +659,15 @@ class BearBufUI:
         funds during a bear market
         """
         try:
-            # create lists of the weekly dates and weekly stock prices
-            week_list, stock_val_list = self.stock_lists_get()
-
-            if not week_list or not stock_val_list:
-                self.log_err("Invalid input data")
-                return
+            # all lists must match the stock value list length
+            list_len = len(self.stock_value)
 
             # a single bear calm fund == number of weeks * weekly expenses
             calm_fund_start = calc.calm_weeks * calc.weekly_exp
 
             # analyze the data for bear markets
-            bear_start_list = [False] * len(stock_val_list)
-            self.bear_analyze(stock_val_list, bear_start_list)
+            bear_start_list = [False] * list_len
+            self.bear_analyze(self.stock_value, bear_start_list)
 
             # calculate the total bear buf (bear calm funds * bear num chosen on UI)
             bear_buf_start = calc.bear_num * calm_fund_start
@@ -684,7 +680,7 @@ class BearBufUI:
 
             # the bear buf is funded through the portfolio, deduct that money
             # before calculating the starting stock number
-            stock_num_remaining = (calc.port_start - bear_buf_start) / stock_val_list[0]
+            stock_num_remaining = (calc.port_start - bear_buf_start) / self.stock_value[0]
 
             # initialize weekly processing variables
             weekly_expense_val = calc.weekly_exp
@@ -712,7 +708,7 @@ class BearBufUI:
                                bear_remaining=calc.bear_num)
     
             # for every week, determine how many stocks need to be sold for expenses
-            for week in week_list[1:]:
+            for week in range(1, list_len):
                 # if a bear start is detected, expenses are paid from the bear calm fund
                 if bear_start_list[week]:
                     bear_active = True
@@ -724,7 +720,7 @@ class BearBufUI:
                     bear_active = False
 
                 weekly = WeeklyCalcData(expenses=weekly_expense_val,
-                                        stock_price=stock_val_list[week],
+                                        stock_price=self.stock_value[week],
                                         bear_active=bear_active,
                                         calm_fund=bear_buf.calm_fund)
                 
@@ -735,24 +731,27 @@ class BearBufUI:
                 elif stock_num_remaining > 0:
                     stock_num_remaining = 0
 
-                # adjust the bear buf if bear calm funds were used
+                # adjust the bear buf total if bear calm funds were used
                 if bear_buf.calm_fund > weekly.calm_fund:
                     bear_buf.total -= (bear_buf.calm_fund - weekly.calm_fund)
 
                 bear_buf.calm_fund = weekly.calm_fund
+
+                # add the weekly interest
                 interest = bear_buf.total * interest_weekly
                 bear_buf.total += interest
 
-                weekly_port_val = (stock_num_remaining * stock_val_list[week]) + bear_buf.total
+                weekly_port_val = (stock_num_remaining * self.stock_value[week]) + bear_buf.total
                 port_val_weekly_list.append(weekly_port_val)
 
+                # add inflation to weekl expenses
                 weekly_expense_val += (weekly_expense_val * inflation_weekly)
 
-            if len(port_val_weekly_list) != len(week_list):
+            if len(port_val_weekly_list) != list_len:
                 self.log_err((
                     f"Lists must be the same length: "
                     f"port val list length: {len(port_val_weekly_list)}, "
-                    f"week list length: {len(week_list)}"
+                    f"stock list length: {list_len}"
                 ))
                 return
 
@@ -772,7 +771,7 @@ class BearBufUI:
 
                 # display the data on the plot
                 x_label = f"Weeks from {self.stock_date[0]} to {self.stock_date[-1]}"
-                self.display_data(x_label, week_list, port_val_weekly_list)
+                self.display_data(x_label, range(0, len(port_val_weekly_list)), port_val_weekly_list)
 
             return self.results["port_total_end"]
 
@@ -835,7 +834,7 @@ class BearBufUI:
                         raise ValueError("Historical data row value must be finite.")
 
                     self.stock_date.append(date)
-                    self.stock_value.append(stock_value)
+                    self.stock_value.append(parsed_value)
 
         except Exception as exc:
             self.history_clear()
@@ -877,7 +876,11 @@ class BearBufUI:
             self.log_err(str(exc))
             return
 
-        self.historical_data_read()
+        try:
+            self.historical_data_read()
+        except ValueError as exc:
+            self.log_err(str(exc))
+            return
 
         if not self.stock_date or not self.stock_value:
             return
