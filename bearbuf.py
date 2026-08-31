@@ -69,6 +69,12 @@ class BearBuf:
     calm_fund: float
     bear_remaining: int
 
+@dataclass
+class BearStart:
+    start_date: str
+    start_week: int
+    recovery_week: int
+
 # ============================================================================
 # Bear Buf UI Application
 # ============================================================================
@@ -554,7 +560,9 @@ class BearBufUI:
         high_val = max(window_values)
         if high_val <= 0:
             raise ValueError("Stock price <= 0!")
+        
         high_index = start + window_values.index(high_val)
+        
         drop_val = high_val * (1 - BEAR_MARKET_DROP_THRESHOLD)
 
         for index in range(high_index, end):
@@ -563,13 +571,31 @@ class BearBufUI:
 
         return None
 
-    def bear_analyze(self, stock_val_list, 
+    def bear_recovery_calc(self, high_index, stock_val_list):
+        """
+        Evaluate stock prices during a bear market to see if a recovery has been
+        reached (stock price >= previous high immediately before the bear market)
+        """
+        stock_val_high = stock_val_list[high_index]
+
+        for week in range(high_index + 1, len(stock_val_list)):
+            if stock_val_list[week] >= stock_val_high:
+                # recovery has been reached
+                return week
+            
+        return 0
+            
+
+    def bear_analyze(self, 
+                     stock_val_list, 
                      stock_date_list, 
                      bear_start_list, 
-                     bear_start_dates):
+                     bear_starts):
         """
-        Analyze the stock prices and detect a bear market start:
-            - 20% drop in price from recent 10 week highs.
+        Analyze the stock prices and detect a bear market start: 
+        20% drop in price from recent 10 week highs. Calculate the 
+        recovery date (when the stock price matches the previous high
+        for the period)
 
         """
         # initialize the bear start list to all False
@@ -588,9 +614,25 @@ class BearBufUI:
             except ValueError as exc:
                 self.log_err(str(exc))
                 return None
+            
             if bear_start_index is not None:
+
+                if bear_start_index <= start:
+                    msg = "Invalid index in bear start calculations"
+                    self.log_err(msg)
+                    return None
+
+                # find the week that the stock value recovers from the high before the
+                # bear started
+                high_index = bear_start_index - 1
+                recovery_week_index = self.bear_recovery_calc(high_index, stock_val_list)
+
+                bear_start = BearStart(stock_date_list[bear_start_index],
+                                       bear_start_index,
+                                       recovery_week_index)
+
                 bear_start_list[bear_start_index] = True
-                bear_start_dates.append(stock_date_list[bear_start_index])
+                bear_starts.append(bear_start)
                 bear_num += 1
                 start = bear_start_index + 1
             else:
@@ -654,11 +696,11 @@ class BearBufUI:
 
             # analyze the data for bear markets
             bear_start_list = []
-            bear_start_dates = []
+            bear_starts = []
             self.bear_analyze(self.stock_value, 
                               self.stock_date, 
                               bear_start_list, 
-                              bear_start_dates)
+                              bear_starts)
 
             # calculate the total bear buf (bear calm funds * bear num chosen on UI)
             bear_buf_start = calc.bear_num * calm_fund_start
@@ -687,6 +729,8 @@ class BearBufUI:
     
             # for every week, determine how many stocks need to be sold for expenses
             for week in range(1, list_len):
+                stock_price = self.stock_value[week]
+
                 # if a bear start is detected, expenses are paid from the bear calm fund
                 # if it is available
                 if bear_start_list[week]:
@@ -697,7 +741,7 @@ class BearBufUI:
                     bear_active = False
 
                 weekly = WeeklyCalcData(expenses=weekly_expense_val,
-                                        stock_price=self.stock_value[week],
+                                        stock_price=stock_price,
                                         bear_active=bear_active,
                                         calm_fund=bear_buf.calm_fund)
                 
@@ -748,8 +792,12 @@ class BearBufUI:
                 self.results["expense_end"]      = weekly_expense_val
                 self.results["port_total_end"]   = port_val_weekly_list[-1]
 
-                if bear_start_dates:
-                    self.results["bear_dates"]   = bear_start_dates
+                if bear_starts:
+                    dates = []
+                    for index in range(len(bear_starts)):
+                        dates.append(bear_starts[index].start_date)
+
+                    self.results["bear_dates"]   = dates
                 else:
                     self.results["bear_dates"]   = "None"
                   
