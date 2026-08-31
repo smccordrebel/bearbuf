@@ -126,8 +126,10 @@ class TestBearMarketDetection(unittest.TestCase):
     def test_bear_start_analyze_detects_twenty_percent_drop(self):
         prices = [10] * 10 + [8]
         bears = [False] * len(prices)
+        dates = ["1/1/2001"] * len(prices)
+        start_dates = ["2/2/2001"] * len(prices)
 
-        bear_num = self.ui.bear_analyze(prices, bears)
+        bear_num = self.ui.bear_analyze(prices, dates, bears, start_dates)
 
         self.assertEqual(bear_num, 1)
         self.assertEqual(bears, [False] * 10 + [True])
@@ -135,8 +137,10 @@ class TestBearMarketDetection(unittest.TestCase):
     def test_bear_start_analyze_returns_zero_for_stable_prices(self):
         prices = [10, 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8, 10.9, 11]
         bears = [True] * len(prices)
+        dates = ["1/1/2001"] * len(prices)
+        start_dates = ["2/2/2001"] * len(prices)
 
-        bear_num = self.ui.bear_analyze(prices, bears)
+        bear_num = self.ui.bear_analyze(prices, dates, bears, start_dates)
 
         self.assertEqual(bear_num, 0)
         self.assertEqual(bears, [False] * len(prices))
@@ -144,8 +148,10 @@ class TestBearMarketDetection(unittest.TestCase):
     def test_bear_start_analyze_detects_multiple_bear_markets(self):
         prices = [10] * 10 + [8] + [12] * 9 + [9.5, 9.5]
         bears = [False] * len(prices)
+        dates = ["1/1/2001"] * len(prices)
+        start_dates = ["2/2/2001"] * len(prices)
 
-        bear_num = self.ui.bear_analyze(prices, bears)
+        bear_num = self.ui.bear_analyze(prices, dates, bears, start_dates)
 
         self.assertEqual(bear_num, 2)
         self.assertTrue(bears[10])
@@ -154,8 +160,10 @@ class TestBearMarketDetection(unittest.TestCase):
     def test_bear_start_analyze_errors_for_non_positive_prices(self):
         prices = [10] * 9 + [0, 8]
         bears = [False] * len(prices)
+        dates = ["1/1/2001"] * len(prices)
+        start_dates = ["2/2/2001"] * len(prices)
 
-        bear_num = self.ui.bear_analyze(prices, bears)
+        bear_num = self.ui.bear_analyze(prices, dates, bears, start_dates)
 
         self.assertIsNone(bear_num)
         self.ui.log_err.assert_called_once_with("Stock price <= 0!")
@@ -164,8 +172,10 @@ class TestBearMarketDetection(unittest.TestCase):
     def test_bear_start_analyze_handles_small_datasets(self):
         prices = [10, 9.5, 9]
         bears = [True] * len(prices)
+        dates = ["1/1/2001"] * len(prices)
+        start_dates = ["2/2/2001"] * len(prices)
 
-        bear_num = self.ui.bear_analyze(prices, bears)
+        bear_num = self.ui.bear_analyze(prices, dates, bears, start_dates)
 
         self.assertEqual(bear_num, 0)
         self.assertEqual(bears, [False] * len(prices))
@@ -260,7 +270,7 @@ class TestHistoricalDataRead(unittest.TestCase):
             self.ui.historical_data_read()
 
         self.assertEqual(self.ui.stock_date, ["2024-01-01", "2024-01-08"])
-        self.assertEqual(self.ui.stock_value, ["100", "101.5"])
+        self.assertEqual(self.ui.stock_value, [100.0, 101.5])
         self.ui.log_err.assert_not_called()
 
     def test_historical_data_read_handles_missing_file(self):

@@ -563,14 +563,14 @@ class BearBufUI:
 
         return None
 
-    def bear_analyze(self, stock_val_list, bear_start_list):
+    def bear_analyze(self, stock_val_list, stock_date_list, bear_start_list, bear_start_dates):
         """
         Analyze the stock prices and detect a bear market start:
             - 20% drop in price from recent 10 week highs.
 
         """
         # initialize the bear start list to all False
-        bear_start_list[:] = [False] * len(bear_start_list)
+        bear_start_list[:] = [False] * len(stock_val_list)
 
         if any(value <= 0.0 for value in stock_val_list):
             self.log_err("Stock price <= 0!")
@@ -578,7 +578,7 @@ class BearBufUI:
 
         bear_num = 0
         start = 0
-        end = start + BEAR_MARKET_LOOK_BACK_WEEKS + 1
+        end = start + BEAR_MARKET_LOOK_BACK_WEEKS
         while end <= len(stock_val_list):
             try:
                 bear_start_index = self._find_bear_drop_start(stock_val_list, start, end)
@@ -587,12 +587,13 @@ class BearBufUI:
                 return None
             if bear_start_index is not None:
                 bear_start_list[bear_start_index] = True
+                bear_start_dates.append(stock_date_list[bear_start_index])
                 bear_num += 1
                 start = bear_start_index + 1
             else:
                 start += 1
 
-            end = start + BEAR_MARKET_LOOK_BACK_WEEKS + 1
+            end = start + BEAR_MARKET_LOOK_BACK_WEEKS
 
         return bear_num
 
@@ -620,7 +621,11 @@ class BearBufUI:
     def bear_calm_funds_refresh(self, bb:BearBuf):
         """If there are remaining bear buf funds, refresh the bear calming funds"""
         if bb.bear_remaining > 0:
-            bb.calm_fund = bb.total / bb.bear_remaining
+            if bb.total > 0.0:
+                bb.calm_fund = bb.total / bb.bear_remaining
+            else:
+                bb.calm_fund = 0.0
+
             bb.bear_remaining -= 1
         else:
             bb.calm_fund = 0
@@ -659,15 +664,16 @@ class BearBufUI:
         funds during a bear market
         """
         try:
-            # all lists must match the stock value list length
+            # all calculator lists must match the stock value list length
             list_len = len(self.stock_value)
 
             # a single bear calm fund == number of weeks * weekly expenses
             calm_fund_start = calc.calm_weeks * calc.weekly_exp
 
             # analyze the data for bear markets
-            bear_start_list = [False] * list_len
-            self.bear_analyze(self.stock_value, bear_start_list)
+            bear_start_list = []
+            bear_start_dates = []
+            self.bear_analyze(self.stock_value, self.stock_date, bear_start_list, bear_start_dates)
 
             # calculate the total bear buf (bear calm funds * bear num chosen on UI)
             bear_buf_start = calc.bear_num * calm_fund_start
@@ -701,7 +707,6 @@ class BearBufUI:
 
             port_val_weekly_list = [weekly_port_val]
             bear_active = False
-            bear_start_dates = []
 
             bear_buf = BearBuf(total=bear_buf_start,
                                calm_fund=0.0,
@@ -710,13 +715,12 @@ class BearBufUI:
             # for every week, determine how many stocks need to be sold for expenses
             for week in range(1, list_len):
                 # if a bear start is detected, expenses are paid from the bear calm fund
+                # if it is available
                 if bear_start_list[week]:
                     bear_active = True
-                    bear_start_dates.append(self.stock_date[week])
                     self.bear_calm_funds_refresh(bear_buf)
 
-                if bear_active and bear_buf.calm_fund <= 0:
-                    bear_buf.calm_fund = 0
+                if not (bear_buf.calm_fund > 0.0):
                     bear_active = False
 
                 weekly = WeeklyCalcData(expenses=weekly_expense_val,
@@ -741,10 +745,11 @@ class BearBufUI:
                 interest = bear_buf.total * interest_weekly
                 bear_buf.total += interest
 
+                # add the weekly portfolio value for this week
                 weekly_port_val = (stock_num_remaining * self.stock_value[week]) + bear_buf.total
                 port_val_weekly_list.append(weekly_port_val)
 
-                # add inflation to weekl expenses
+                # add inflation to weekly expenses
                 weekly_expense_val += (weekly_expense_val * inflation_weekly)
 
             if len(port_val_weekly_list) != list_len:
