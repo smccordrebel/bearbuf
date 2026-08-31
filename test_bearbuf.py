@@ -127,7 +127,7 @@ class TestBearMarketDetection(unittest.TestCase):
         prices = [10] * 10 + [8]
         bears = [False] * len(prices)
 
-        bear_num = self.ui.bear_start_analyze(prices, bears)
+        bear_num = self.ui.bear_analyze(prices, bears)
 
         self.assertEqual(bear_num, 1)
         self.assertEqual(bears, [False] * 10 + [True])
@@ -136,7 +136,7 @@ class TestBearMarketDetection(unittest.TestCase):
         prices = [10, 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8, 10.9, 11]
         bears = [True] * len(prices)
 
-        bear_num = self.ui.bear_start_analyze(prices, bears)
+        bear_num = self.ui.bear_analyze(prices, bears)
 
         self.assertEqual(bear_num, 0)
         self.assertEqual(bears, [False] * len(prices))
@@ -145,7 +145,7 @@ class TestBearMarketDetection(unittest.TestCase):
         prices = [10] * 10 + [8] + [12] * 9 + [9.5, 9.5]
         bears = [False] * len(prices)
 
-        bear_num = self.ui.bear_start_analyze(prices, bears)
+        bear_num = self.ui.bear_analyze(prices, bears)
 
         self.assertEqual(bear_num, 2)
         self.assertTrue(bears[10])
@@ -155,7 +155,7 @@ class TestBearMarketDetection(unittest.TestCase):
         prices = [10] * 9 + [0, 8]
         bears = [False] * len(prices)
 
-        bear_num = self.ui.bear_start_analyze(prices, bears)
+        bear_num = self.ui.bear_analyze(prices, bears)
 
         self.assertIsNone(bear_num)
         self.ui.log_err.assert_called_once_with("Stock price <= 0!")
@@ -165,7 +165,7 @@ class TestBearMarketDetection(unittest.TestCase):
         prices = [10, 9.5, 9]
         bears = [True] * len(prices)
 
-        bear_num = self.ui.bear_start_analyze(prices, bears)
+        bear_num = self.ui.bear_analyze(prices, bears)
 
         self.assertEqual(bear_num, 0)
         self.assertEqual(bears, [False] * len(prices))
