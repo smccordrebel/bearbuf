@@ -634,28 +634,6 @@ class BearBufUI:
             bb.calm_fund = 0
             bb.bear_remaining = 0
 
-    def _initialize_analysis_results(
-        self,
-        portfolio_start,
-        inflation_annual,
-        inflation_weekly,
-        interest_annual,
-        interest_weekly,
-        weekly_expense_start,
-        calm_fund_start,
-        bear_market_num
-    ):
-        """Populate self.results with common metadata for each analysis run."""
-        self.results["date_range"] = f"{self.stock_date[0]} to {self.stock_date[-1]}"
-        self.results["port_total_start"] = portfolio_start
-        self.results["inflation_annual"] = inflation_annual
-        self.results["inflation_weekly"] = inflation_weekly
-        self.results["interest_annual"] = interest_annual
-        self.results["interest_weekly"] = interest_weekly
-        self.results["expense_start"] = weekly_expense_start
-        self.results["bear_calm"] = calm_fund_start
-        self.results["bear_num_total"] = bear_market_num
-    
     def analyze_historical_data(
         self,
         calc: CalcData,
@@ -756,26 +734,24 @@ class BearBufUI:
 
             if log_results:
                 # log the results of the analysis
-                self._initialize_analysis_results(
-                    portfolio_start=calc.port_start,
-                    inflation_annual=calc.inflation_annual,
-                    inflation_weekly=inflation_weekly,
-                    interest_annual=calc.interest_annual,
-                    interest_weekly=interest_weekly,
-                    weekly_expense_start=weekly_exp_start,
-                    calm_fund_start=calm_fund_start,
-                    bear_market_num=calc.bear_num
-                )
+                self.results["date_range"]       = f"{self.stock_date[0]} to {self.stock_date[-1]}"
+                self.results["port_total_start"] = calc.port_start
+                self.results["inflation_annual"] = calc.inflation_annual
+                self.results["inflation_weekly"] = inflation_weekly
+                self.results["interest_annual"]  = calc.interest_annual
+                self.results["interest_weekly"]  = interest_weekly
+                self.results["expense_start"]    = weekly_exp_start
+                self.results["bear_calm"]        = calm_fund_start
+                self.results["bear_num_total"]   = calc.bear_num
+                self.results["bb_start"]         = bear_buf_start
+                self.results["bb_end"]           = bear_buf.total
+                self.results["expense_end"]      = weekly_expense_val
+                self.results["port_total_end"]   = port_val_weekly_list[-1]
 
                 if bear_start_dates:
-                    self.results["bear_dates"] = bear_start_dates
+                    self.results["bear_dates"]   = bear_start_dates
                 else:
-                    self.results["bear_dates"] = "None"
-    
-                self.results["bb_start"] = bear_buf_start
-                self.results["bb_end"] = bear_buf.total
-                self.results["expense_end"] = weekly_expense_val
-                self.results["port_total_end"] = port_val_weekly_list[-1]
+                    self.results["bear_dates"]   = "None"
                   
                 self.log_results()
 
