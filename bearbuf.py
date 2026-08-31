@@ -14,7 +14,7 @@ import tkinter as tk
 from tkinter import filedialog
 from tkinter import messagebox, ttk
 from dataclasses import dataclass
-from typing import Optional, TextIO
+from typing import Optional
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 from datetime import datetime
@@ -53,6 +53,15 @@ class WeeklyCalcData:
     stock_price: float
     bear_active: bool
     bear_calm_fund: float
+
+@dataclass
+class CalcData:
+    port_start: float
+    weekly_exp: float
+    inflation_annual: float
+    interest_annual: float
+    calm_weeks: int
+    bear_num: int
 
 # ============================================================================
 # Bear Buf UI Application
@@ -200,7 +209,7 @@ class BearBufUI:
         self.weekly_expenses_val = tk.StringVar(value="2000")
         self.annual_inflation_rate_val = tk.StringVar(value="3")
         self.annual_interest_rate_val = tk.StringVar(value="1")
-        self.bear_calm_weeks_val = tk.StringVar(value="0")
+        self.bear_calm_weeks_val = tk.StringVar(value="26")
         self.bear_market_num_val = tk.StringVar(value="0")
 
         vcmd_int = (self.root.register(self.validate_integer_entry), "%P")
@@ -405,6 +414,7 @@ class BearBufUI:
         self,
         value: str,
         field_name: str,
+        int_expected: bool = False,
         allow_zero: bool = False
     ) -> float:
         """Parse and validate a numeric field."""
@@ -412,7 +422,12 @@ class BearBufUI:
             raise ValueError(f"{field_name} is required.")
 
         try:
-            number = float(value)
+            # integer or float?
+            if int_expected:
+                number = int(value)
+            else:
+                number = float(value)
+
         except (TypeError, ValueError) as exc:
             raise ValueError(f"{field_name} must be a valid number.") from exc
 
@@ -428,17 +443,17 @@ class BearBufUI:
     def validate_inputs(self):
         """Validate all user inputs and return parsed numeric values."""
         fields = (
-            (self.portfolio_start_val.get(), "Starting Portfolio", False),
-            (self.weekly_expenses_val.get(), "Weekly Expenses", False),
-            (self.annual_inflation_rate_val.get(), "Annual Inflation Rate", True),
-            (self.annual_interest_rate_val.get(), "Annual Interest Rate", True),
-            (self.bear_calm_weeks_val.get(), "Bear Calm Amount", True),
-            (self.bear_market_num_val.get(), "Bear Market Num", True),
+            (self.portfolio_start_val.get(), "Starting Portfolio", False, False),
+            (self.weekly_expenses_val.get(), "Weekly Expenses", False, False),
+            (self.annual_inflation_rate_val.get(), "Annual Inflation Rate", False, True),
+            (self.annual_interest_rate_val.get(), "Annual Interest Rate", False, True),
+            (self.bear_calm_weeks_val.get(), "Bear Calm Amount",True, True),
+            (self.bear_market_num_val.get(), "Bear Market Num", True, True),
         )
 
         parsed_values = [
-            self.parse_positive_number(value, field_name, allow_zero=allow_zero)
-            for value, field_name, allow_zero in fields
+            self.parse_positive_number(value, field_name, int_expected, allow_zero=allow_zero)
+            for value, field_name, int_expected, allow_zero in fields
         ]
         return tuple(parsed_values)
 
@@ -610,9 +625,9 @@ class BearBufUI:
     def _initialize_analysis_results(
         self,
         portfolio_start,
-        annual_inflation_rate,
+        inflation_rate_annual,
         weekly_inflation_rate,
-        annual_interest_rate,
+        interest_rate_annual,
         weekly_interest_rate,
         weekly_expense_start,
         bear_calm_fund_start,
@@ -621,9 +636,9 @@ class BearBufUI:
         """Populate self.results with common metadata for each analysis run."""
         self.results["date_range"] = f"{self.stock_date[0]} to {self.stock_date[-1]}"
         self.results["port_total_start"] = portfolio_start
-        self.results["inflation_annual"] = annual_inflation_rate
+        self.results["inflation_annual"] = inflation_rate_annual
         self.results["inflation_weekly"] = weekly_inflation_rate
-        self.results["interest_annual"] = annual_interest_rate
+        self.results["interest_annual"] = interest_rate_annual
         self.results["interest_weekly"] = weekly_interest_rate
         self.results["expense_start"] = weekly_expense_start
         self.results["bear_calm"] = bear_calm_fund_start
@@ -631,18 +646,13 @@ class BearBufUI:
     
     def analyze_historical_data(
         self,
-        portfolio_start: float,
-        weekly_expense_start: float,
-        annual_inflation_rate: float,
-        annual_interest_rate: float,
-        bear_calm_weeks: float,
-        bear_market_num: float,
+        calc: CalcData,
         log_results=True
     ):
         """
         Calculate a portfolio value over time, by evaluating every week and
-        subtracting expenses either through selling stocks or if in a bear market
-        using bear calm funds.
+        subtracting expenses either through selling stocks or using bear calming
+        funds during a bear market
         """
         try:
             # create lists of the weekly dates and weekly stock prices
@@ -653,46 +663,46 @@ class BearBufUI:
                 return
 
             # a single bear calm fund == number of weeks * weekly expenses
-            bear_calm_fund_start = bear_calm_weeks * weekly_expense_start
+            bear_calm_fund_start = calc.calm_weeks * calc.weekly_exp
 
             # analyze the data for bear markets
             bear_start_list = [False] * len(stock_val_list)
             self.bear_start_analyze(stock_val_list, bear_start_list)
 
             # calculate the total bear buf (bear calm funds * bear num chosen on UI)
-            bear_buf_start = bear_market_num * bear_calm_fund_start
+            bear_buf_start = calc.bear_num * bear_calm_fund_start
             bear_buf_val = bear_buf_start
 
-            if bear_buf_val > portfolio_start:
+            if bear_buf_val > calc.port_start:
                 msg = f"Not enough $$ in portfolio to fund the bear buf. "
-                msg += f"Funds needed: calm weeks {bear_calm_weeks}, total {bear_buf_val}"
+                msg += f"Funds needed: calm weeks {calc.calm_weeks}, total {bear_buf_val}"
                 self.log_err(msg)
                 return
 
             # the bear buf is funded through the portfolio, deduct that money
             # before calculating the starting stock number
-            stock_num_remaining = (portfolio_start - bear_buf_val) / stock_val_list[0]
+            stock_num_remaining = (calc.port_start - bear_buf_val) / stock_val_list[0]
 
             # initialize weekly processing variables
-            weekly_expense_val = weekly_expense_start
-            weekly_port_val = portfolio_start
-            weekly_inflation_rate = self.weekly_rate_from_annual(annual_inflation_rate)
-            weekly_interest_rate = self.weekly_rate_from_annual(annual_interest_rate)
+            weekly_expense_val = calc.weekly_exp
+            weekly_port_val = calc.port_start
+            weekly_inflation_rate = self.weekly_rate_from_annual(calc.inflation_annual)
+            weekly_interest_rate = self.weekly_rate_from_annual(calc.interest_annual)
             self._initialize_analysis_results(
-                portfolio_start=portfolio_start,
-                annual_inflation_rate=annual_inflation_rate,
+                portfolio_start=calc.port_start,
+                inflation_rate_annual=calc.inflation_annual,
                 weekly_inflation_rate=weekly_inflation_rate,
-                annual_interest_rate=annual_interest_rate,
+                interest_rate_annual=calc.interest_annual,
                 weekly_interest_rate=weekly_interest_rate,
-                weekly_expense_start=weekly_expense_start,
+                weekly_expense_start=calc.weekly_exp,
                 bear_calm_fund_start=bear_calm_fund_start,
-                bear_market_num=bear_market_num
+                bear_market_num=calc.bear_num
             )
 
             port_val_weekly_list = [weekly_port_val]
             bear_active = False
             bear_start_dates = []
-            bear_remaining = bear_market_num
+            bear_remaining = calc.bear_num
             bear_calm_fund = 0
 
             # for every week, determine how many stocks need to be sold for expenses
@@ -849,15 +859,16 @@ class BearBufUI:
                     filetypes=[("CSV Files", "*.csv")]
         )
         return file_path
-    
+
+
     def on_calculator_run(self):
         """Run the calculator and display results."""
         try:
             (
                 portfolio_start,
                 weekly_expenses,
-                annual_inflation_rate,
-                annual_interest_rate,
+                inflation_rate_annual,
+                interest_rate_annual,
                 bear_calm_weeks,
                 bear_market_num
             ) = self.validate_inputs()
@@ -870,62 +881,47 @@ class BearBufUI:
         if not self.stock_date or not self.stock_value:
             return
 
+        calc_data = CalcData(port_start=portfolio_start,
+                             weekly_exp=weekly_expenses,
+                             inflation_annual=inflation_rate_annual,
+                             interest_annual=interest_rate_annual,
+                             calm_weeks=bear_calm_weeks,
+                             bear_num=bear_market_num)
+
+
         if not self.auto_run_var.get():
             # run a single pass and display the results on the plot
-            self.analyze_historical_data(
-                portfolio_start=portfolio_start,
-                weekly_expense_start=weekly_expenses,
-                annual_inflation_rate=annual_inflation_rate,
-                annual_interest_rate=annual_interest_rate,
-                bear_calm_weeks=bear_calm_weeks,
-                bear_market_num=bear_market_num,
-                log_results=True)
+            self.analyze_historical_data(calc_data, log_results=True)
 
         else:
             # evaluate the portfolio with different bear calming weeks to 
             # determine the largest final portfolio
-            calm_weeks = 0
+            calc_data.calm_weeks = 0
             port_end_previous = 0
             port_end = 1
 
-            while (calm_weeks <= CALM_WEEK_MAX):
-                
-                port_end = self.analyze_historical_data(
-                    portfolio_start=portfolio_start,
-                    weekly_expense_start=weekly_expenses,
-                    annual_inflation_rate=annual_inflation_rate,
-                    annual_interest_rate=annual_interest_rate,
-                    bear_calm_weeks=calm_weeks,
-                    bear_market_num=bear_market_num,
-                    log_results=False)
+            while (calc_data.calm_weeks <= CALM_WEEK_MAX):
+
+                port_end = self.analyze_historical_data(calc_data, log_results=False)
 
                 if port_end >= port_end_previous:
                     port_end_previous = port_end
-                    calm_weeks += 1
+                    calc_data.calm_weeks += 1
                 else:
                     # use the previous # of calm weeks, it resulted in a higher ending portfolio
-                    if calm_weeks > 0:
-                        calm_weeks -= 1
+                    if calc_data.calm_weeks > 0:
+                        calc_data.calm_weeks -= 1
 
                     break
 
-            if calm_weeks > CALM_WEEK_MAX:
-                msg = f"Auto run stopped before finding optimal calming weeks."
-                msg += f" End portfolio {port_end:.2f}, end calming weeks {calm_weeks}"
-                self.log_msg("Auto run stopped before finding maximum end portfolio")
+            if calc_data.calm_weeks > CALM_WEEK_MAX:
+                msg = "Auto run stopped before finding optimal calming weeks."
+                self.log_msg(msg)
             else:
-                self.analyze_historical_data(
-                                portfolio_start=portfolio_start,
-                                weekly_expense_start=weekly_expenses,
-                                annual_inflation_rate=annual_inflation_rate,
-                                annual_interest_rate=annual_interest_rate,
-                                bear_calm_weeks=calm_weeks,
-                                bear_market_num=bear_market_num,
-                                log_results=True)
-                
+                port_end = self.analyze_historical_data(calc_data, log_results=True)
                 msg = f"Maximum portfolio of {port_end:.2f}"
-                msg += f" found when bear calming weeks are {calm_weeks}"
-                msg += f" total weeks {calm_weeks*bear_market_num:.2f}"
+                msg += f" found when bear calming weeks are {calc_data.calm_weeks}"
+                msg += f" total weeks {calc_data.calm_weeks * calc_data.bear_num}"
                 self.log_msg(msg)
 
 def main():
