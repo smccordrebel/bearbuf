@@ -52,7 +52,7 @@ class WeeklyCalcData:
     expenses: float
     stock_price: float
     bear_active: bool
-    bear_calm_fund: float
+    calm_fund: float
 
 @dataclass
 class CalcData:
@@ -463,7 +463,7 @@ class BearBufUI:
         weekly_rate = (1 + rate) ** (1 / 52) - 1
         return weekly_rate
     
-    def weekly_expense_stock_calc(self, calc:WeeklyCalcData):
+    def weekly_expense_stock_calc(self, weekly:WeeklyCalcData):
         """
         Determine how many stocks need to be sold to cover expenses. Utilize
         the bear calming funds if in a bear market.
@@ -472,26 +472,26 @@ class BearBufUI:
 
         @return the number of stocks that need to be sold
         """
-        exps = calc.expenses
+        exps = weekly.expenses
 
-        if not calc.bear_active:
-            return exps / calc.stock_price
+        if not weekly.bear_active:
+            return exps / weekly.stock_price
 
         # if it is a bear market, try and use bear calming $$
-        if calc.bear_calm_fund >= exps:
+        if weekly.calm_fund >= exps:
             # no stocks are needed to pay expenses
-            calc.bear_calm_fund -= exps
+            weekly.calm_fund -= exps
             return 0
         
-        elif calc.bear_calm_fund > 0:
+        elif weekly.calm_fund > 0:
             # use the remaining bear calming $$ and sell stocks for the rest
-            exps -= calc.bear_calm_fund
-            calc.bear_calm_fund = 0
-            return exps / calc.stock_price
+            exps -= weekly.calm_fund
+            weekly.calm_fund = 0
+            return exps / weekly.stock_price
 
         else:
             # no bear calming $$ left, sell stocks
-            return exps / calc.stock_price
+            return exps / weekly.stock_price
 
     def append_log_output(self, level: str, msg: str):
         """Append log output to the UI log window."""
@@ -722,12 +722,12 @@ class BearBufUI:
                     bear_calm_fund = 0
                     bear_active = False
 
-                calc = WeeklyCalcData(expenses=weekly_expense_val,
+                weekly = WeeklyCalcData(expenses=weekly_expense_val,
                                       stock_price=stock_val_list[week],
                                       bear_active=bear_active,
-                                      bear_calm_fund=bear_calm_fund)
+                                      calm_fund=bear_calm_fund)
                 
-                expense_stock_num = self.weekly_expense_stock_calc(calc)
+                expense_stock_num = self.weekly_expense_stock_calc(weekly)
 
                 if expense_stock_num <= stock_num_remaining:
                     stock_num_remaining -= expense_stock_num
@@ -735,10 +735,10 @@ class BearBufUI:
                     stock_num_remaining = 0
 
                 # adjust the bear buf if bear calm funds were used
-                if bear_calm_fund > calc.bear_calm_fund:
-                    bear_buf_val -= (bear_calm_fund - calc.bear_calm_fund)
+                if bear_calm_fund > weekly.calm_fund:
+                    bear_buf_val -= (bear_calm_fund - weekly.calm_fund)
 
-                bear_calm_fund = calc.bear_calm_fund
+                bear_calm_fund = weekly.calm_fund
                 interest = bear_buf_val * interest_weekly
                 bear_buf_val += interest
 
