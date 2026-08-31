@@ -563,7 +563,10 @@ class BearBufUI:
 
         return None
 
-    def bear_analyze(self, stock_val_list, stock_date_list, bear_start_list, bear_start_dates):
+    def bear_analyze(self, stock_val_list, 
+                     stock_date_list, 
+                     bear_start_list, 
+                     bear_start_dates):
         """
         Analyze the stock prices and detect a bear market start:
             - 20% drop in price from recent 10 week highs.
@@ -668,12 +671,16 @@ class BearBufUI:
             list_len = len(self.stock_value)
 
             # a single bear calm fund == number of weeks * weekly expenses
-            calm_fund_start = calc.calm_weeks * calc.weekly_exp
+            weekly_exp_start = calc.weekly_exp
+            calm_fund_start = calc.calm_weeks * weekly_exp_start
 
             # analyze the data for bear markets
             bear_start_list = []
             bear_start_dates = []
-            self.bear_analyze(self.stock_value, self.stock_date, bear_start_list, bear_start_dates)
+            self.bear_analyze(self.stock_value, 
+                              self.stock_date, 
+                              bear_start_list, 
+                              bear_start_dates)
 
             # calculate the total bear buf (bear calm funds * bear num chosen on UI)
             bear_buf_start = calc.bear_num * calm_fund_start
@@ -693,18 +700,6 @@ class BearBufUI:
             weekly_port_val = calc.port_start
             inflation_weekly = self.weekly_rate_from_annual(calc.inflation_annual)
             interest_weekly = self.weekly_rate_from_annual(calc.interest_annual)
-
-            self._initialize_analysis_results(
-                portfolio_start=calc.port_start,
-                inflation_annual=calc.inflation_annual,
-                inflation_weekly=inflation_weekly,
-                interest_annual=calc.interest_annual,
-                interest_weekly=interest_weekly,
-                weekly_expense_start=calc.weekly_exp,
-                calm_fund_start=calm_fund_start,
-                bear_market_num=calc.bear_num
-            )
-
             port_val_weekly_list = [weekly_port_val]
             bear_active = False
 
@@ -753,32 +748,43 @@ class BearBufUI:
                 weekly_expense_val += (weekly_expense_val * inflation_weekly)
 
             if len(port_val_weekly_list) != list_len:
-                self.log_err((
-                    f"Lists must be the same length: "
-                    f"port val list length: {len(port_val_weekly_list)}, "
-                    f"stock list length: {list_len}"
-                ))
+                msg = "Lists must be the same length: "
+                msg += f"port val list length: {len(port_val_weekly_list)}, "
+                msg += f"stock list length: {list_len}"
+                self.log_err(msg)
                 return
 
-            # log the results of the analysis
-            if bear_start_dates:
-                self.results["bear_dates"] = bear_start_dates
-            else:
-                self.results["bear_dates"] = "None"
-
-            self.results["bb_start"] = bear_buf_start
-            self.results["bb_end"] = bear_buf.total
-            self.results["expense_end"] = weekly_expense_val
-            self.results["port_total_end"] = port_val_weekly_list[-1]
-
             if log_results:
+                # log the results of the analysis
+                self._initialize_analysis_results(
+                    portfolio_start=calc.port_start,
+                    inflation_annual=calc.inflation_annual,
+                    inflation_weekly=inflation_weekly,
+                    interest_annual=calc.interest_annual,
+                    interest_weekly=interest_weekly,
+                    weekly_expense_start=weekly_exp_start,
+                    calm_fund_start=calm_fund_start,
+                    bear_market_num=calc.bear_num
+                )
+
+                if bear_start_dates:
+                    self.results["bear_dates"] = bear_start_dates
+                else:
+                    self.results["bear_dates"] = "None"
+    
+                self.results["bb_start"] = bear_buf_start
+                self.results["bb_end"] = bear_buf.total
+                self.results["expense_end"] = weekly_expense_val
+                self.results["port_total_end"] = port_val_weekly_list[-1]
+                  
                 self.log_results()
 
                 # display the data on the plot
                 x_label = f"Weeks from {self.stock_date[0]} to {self.stock_date[-1]}"
                 self.display_data(x_label, range(0, len(port_val_weekly_list)), port_val_weekly_list)
 
-            return self.results["port_total_end"]
+            # return the final portfolio ending value
+            return port_val_weekly_list[-1]
 
         except Exception as e:
             self.log_err(f"{type(e).__name__}: {e}")
