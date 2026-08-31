@@ -557,7 +557,7 @@ class BearBufUI:
 
         return None
 
-    def bear_start_analyze(self, stock_val_list, bear_start_list):
+    def bear_analyze(self, stock_val_list, bear_start_list):
         """
         Analyze the stock prices and detect a bear market start:
             - 20% drop in price from recent 10 week highs.
@@ -625,23 +625,23 @@ class BearBufUI:
     def _initialize_analysis_results(
         self,
         portfolio_start,
-        inflation_rate_annual,
-        weekly_inflation_rate,
-        interest_rate_annual,
-        weekly_interest_rate,
+        inflation_annual,
+        inflation_weekly,
+        interest_annual,
+        interest_weekly,
         weekly_expense_start,
-        bear_calm_fund_start,
+        calm_fund_start,
         bear_market_num
     ):
         """Populate self.results with common metadata for each analysis run."""
         self.results["date_range"] = f"{self.stock_date[0]} to {self.stock_date[-1]}"
         self.results["port_total_start"] = portfolio_start
-        self.results["inflation_annual"] = inflation_rate_annual
-        self.results["inflation_weekly"] = weekly_inflation_rate
-        self.results["interest_annual"] = interest_rate_annual
-        self.results["interest_weekly"] = weekly_interest_rate
+        self.results["inflation_annual"] = inflation_annual
+        self.results["inflation_weekly"] = inflation_weekly
+        self.results["interest_annual"] = interest_annual
+        self.results["interest_weekly"] = interest_weekly
         self.results["expense_start"] = weekly_expense_start
-        self.results["bear_calm"] = bear_calm_fund_start
+        self.results["bear_calm"] = calm_fund_start
         self.results["bear_num_total"] = bear_market_num
     
     def analyze_historical_data(
@@ -663,14 +663,14 @@ class BearBufUI:
                 return
 
             # a single bear calm fund == number of weeks * weekly expenses
-            bear_calm_fund_start = calc.calm_weeks * calc.weekly_exp
+            calm_fund_start = calc.calm_weeks * calc.weekly_exp
 
             # analyze the data for bear markets
             bear_start_list = [False] * len(stock_val_list)
-            self.bear_start_analyze(stock_val_list, bear_start_list)
+            self.bear_analyze(stock_val_list, bear_start_list)
 
             # calculate the total bear buf (bear calm funds * bear num chosen on UI)
-            bear_buf_start = calc.bear_num * bear_calm_fund_start
+            bear_buf_start = calc.bear_num * calm_fund_start
             bear_buf_val = bear_buf_start
 
             if bear_buf_val > calc.port_start:
@@ -686,16 +686,17 @@ class BearBufUI:
             # initialize weekly processing variables
             weekly_expense_val = calc.weekly_exp
             weekly_port_val = calc.port_start
-            weekly_inflation_rate = self.weekly_rate_from_annual(calc.inflation_annual)
-            weekly_interest_rate = self.weekly_rate_from_annual(calc.interest_annual)
+            inflation_weekly = self.weekly_rate_from_annual(calc.inflation_annual)
+            interest_weekly = self.weekly_rate_from_annual(calc.interest_annual)
+
             self._initialize_analysis_results(
                 portfolio_start=calc.port_start,
-                inflation_rate_annual=calc.inflation_annual,
-                weekly_inflation_rate=weekly_inflation_rate,
-                interest_rate_annual=calc.interest_annual,
-                weekly_interest_rate=weekly_interest_rate,
+                inflation_annual=calc.inflation_annual,
+                inflation_weekly=inflation_weekly,
+                interest_annual=calc.interest_annual,
+                interest_weekly=interest_weekly,
                 weekly_expense_start=calc.weekly_exp,
-                bear_calm_fund_start=bear_calm_fund_start,
+                calm_fund_start=calm_fund_start,
                 bear_market_num=calc.bear_num
             )
 
@@ -707,8 +708,7 @@ class BearBufUI:
 
             # for every week, determine how many stocks need to be sold for expenses
             for week in week_list[1:]:
-                # if a bear start is detected, expenses are paid from
-                # the bear calm fund until it is depleted
+                # if a bear start is detected, expenses are paid from the bear calm fund
                 if bear_start_list[week]:
                     bear_active = True
                     bear_start_dates.append(self.stock_date[week])
@@ -739,13 +739,13 @@ class BearBufUI:
                     bear_buf_val -= (bear_calm_fund - calc.bear_calm_fund)
 
                 bear_calm_fund = calc.bear_calm_fund
-                interest = bear_buf_val * weekly_interest_rate
+                interest = bear_buf_val * interest_weekly
                 bear_buf_val += interest
 
                 weekly_port_val = (stock_num_remaining * stock_val_list[week]) + bear_buf_val
                 port_val_weekly_list.append(weekly_port_val)
 
-                weekly_expense_val += (weekly_expense_val * weekly_inflation_rate)
+                weekly_expense_val += (weekly_expense_val * inflation_weekly)
 
             if len(port_val_weekly_list) != len(week_list):
                 self.log_err((
@@ -867,8 +867,8 @@ class BearBufUI:
             (
                 portfolio_start,
                 weekly_expenses,
-                inflation_rate_annual,
-                interest_rate_annual,
+                inflation_annual,
+                interest_annual,
                 bear_calm_weeks,
                 bear_market_num
             ) = self.validate_inputs()
@@ -883,8 +883,8 @@ class BearBufUI:
 
         calc_data = CalcData(port_start=portfolio_start,
                              weekly_exp=weekly_expenses,
-                             inflation_annual=inflation_rate_annual,
-                             interest_annual=interest_rate_annual,
+                             inflation_annual=inflation_annual,
+                             interest_annual=interest_annual,
                              calm_weeks=bear_calm_weeks,
                              bear_num=bear_market_num)
 
