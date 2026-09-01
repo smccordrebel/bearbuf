@@ -1,4 +1,4 @@
-/multisense_lab.py
 /*.txt
 /*.csv
 /stock_inputs
+/.pytest_cache
