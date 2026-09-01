@@ -459,7 +459,7 @@ class BearBufUI:
             (self.weekly_expenses_val.get(), "Weekly Expenses", False, False),
             (self.annual_inflation_rate_val.get(), "Annual Inflation Rate", False, True),
             (self.annual_interest_rate_val.get(), "Annual Interest Rate", False, True),
-            (self.bear_calm_weeks_val.get(), "Bear Calm Amount",True, True),
+            (self.bear_calm_weeks_val.get(), "Bear Calm Weeks",True, True),
             (self.bear_market_num_val.get(), "Bear Market Num", True, True),
         )
 
@@ -583,7 +583,7 @@ class BearBufUI:
                 # recovery has been reached
                 return week
             
-        return 0
+        return None
             
 
     def bear_analyze(self, 
@@ -622,8 +622,7 @@ class BearBufUI:
                     self.log_err(msg)
                     return None
 
-                # find the week that the stock value recovers from the high before the
-                # bear started
+                # find the week that the stock value recovers
                 high_index = bear_start_index - 1
                 recovery_week_index = self.bear_recovery_calc(high_index, stock_val_list)
 
@@ -680,7 +679,7 @@ class BearBufUI:
         self,
         calc: CalcData,
         log_results=True
-    ):
+    ) -> float:
         """
         Calculate a portfolio value over time, by evaluating every week and
         subtracting expenses either through selling stocks or using bear calming
@@ -706,10 +705,10 @@ class BearBufUI:
             bear_buf_start = calc.bear_num * calm_fund_start
 
             if bear_buf_start > calc.port_start:
-                msg = f"Not enough $$ in portfolio to fund the bear buf. "
-                msg += f"Funds needed: calm weeks {calc.calm_weeks}, total {bear_buf_start}"
+                msg = "Not enough $$ in portfolio to fund the bear buf."
+                msg += f" Funds needed: calm weeks {calc.calm_weeks}, total {bear_buf_start}"
                 self.log_err(msg)
-                return
+                return None
 
             # the bear buf is funded through the portfolio, deduct that money
             # before calculating the starting stock number
@@ -774,7 +773,7 @@ class BearBufUI:
                 msg += f"port val list length: {len(port_val_weekly_list)}, "
                 msg += f"stock list length: {list_len}"
                 self.log_err(msg)
-                return
+                return None
 
             if log_results:
                 # log the results of the analysis
@@ -906,11 +905,7 @@ class BearBufUI:
             self.log_err(str(exc))
             return
 
-        try:
-            self.historical_data_read()
-        except ValueError as exc:
-            self.log_err(str(exc))
-            return
+        self.historical_data_read()
 
         if not self.stock_date or not self.stock_value:
             return
@@ -925,7 +920,9 @@ class BearBufUI:
 
         if not self.auto_run_var.get():
             # run a single pass and display the results on the plot
-            self.analyze_historical_data(calc_data, log_results=True)
+            port_end = self.analyze_historical_data(calc_data, log_results=True)
+            if port_end is None:
+                return
 
         else:
             # evaluate the portfolio with different bear calming weeks to 
@@ -937,6 +934,8 @@ class BearBufUI:
             while (calc_data.calm_weeks <= CALM_WEEK_MAX):
 
                 port_end = self.analyze_historical_data(calc_data, log_results=False)
+                if port_end is None:
+                    return
 
                 if port_end >= port_end_previous:
                     port_end_previous = port_end
@@ -953,6 +952,9 @@ class BearBufUI:
                 self.log_msg(msg)
             else:
                 port_end = self.analyze_historical_data(calc_data, log_results=True)
+                if port_end is None:
+                    return
+                
                 msg = f"Maximum portfolio of {port_end:.2f}"
                 msg += f" found when bear calming weeks are {calc_data.calm_weeks}"
                 msg += f" total weeks {calc_data.calm_weeks * calc_data.bear_num}"
