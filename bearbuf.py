@@ -60,7 +60,6 @@ class CalcData:
     inflation_annual: float
     interest_annual: float
     calm_weeks: int
-    bear_num: int
 
 @dataclass
 class BearBuf:
@@ -235,16 +234,12 @@ class BearBufUI:
         ttk.Label(inputs_frame, text="Bear Calm Weeks").grid(
             row=4, column=0, sticky="w", padx=(0, 10), pady=4
         )
-        ttk.Label(inputs_frame, text="Bear Market Number").grid(
-            row=5, column=0, sticky="w", padx=(0, 10), pady=4
-        )
 
         self.portfolio_start_val = tk.StringVar(value="2000000")
         self.weekly_expenses_val = tk.StringVar(value="2000")
         self.annual_inflation_rate_val = tk.StringVar(value="3")
         self.annual_interest_rate_val = tk.StringVar(value="1")
         self.bear_calm_weeks_val = tk.StringVar(value="26")
-        self.bear_market_num_val = tk.StringVar(value="0")
 
         vcmd_int = (self.root.register(self.validate_integer_entry), "%P")
         vcmd_float = (self.root.register(self.validate_float_entry), "%P")
@@ -292,22 +287,12 @@ class BearBufUI:
             validate="key",
             validatecommand=vcmd_int
         )
-        self.bear_market_num_entry = ttk.Entry(
-            inputs_frame,
-            textvariable=self.bear_market_num_val,
-            width=14,
-            justify=tk.RIGHT,
-            validate="key",
-            state=tk.DISABLED,
-            validatecommand=vcmd_int
-        )
 
         self.portfolio_start_entry.grid(row=0, column=1, sticky="ew", pady=4)
         self.weekly_expenses_entry.grid(row=1, column=1, sticky="ew", pady=4)
         self.annual_inflation_rate_entry.grid(row=2, column=1, sticky="ew", pady=4)
         self.annual_interest_rate_entry.grid(row=3, column=1, sticky="ew", pady=4)
         self.bear_calm_weeks_entry.grid(row=4, column=1, sticky="ew", pady=4)
-        self.bear_market_num_entry.grid(row=5, column=1, sticky="ew", pady=4)
 
         calculator_run_frame = ttk.Frame(calculator_frame)
         calculator_run_frame.grid(row=2, column=0, sticky="ew", pady=4)
@@ -442,7 +427,6 @@ class BearBufUI:
             (self.annual_inflation_rate_val.get(), "Annual Inflation Rate", False, True),
             (self.annual_interest_rate_val.get(), "Annual Interest Rate", False, True),
             (self.bear_calm_weeks_val.get(), "Bear Calm Weeks", True, True),
-            (self.bear_market_num_val.get(), "Bear Market Num", True, True),
         )
 
         parsed_values = [
@@ -586,7 +570,6 @@ class BearBufUI:
             self.log_err("Stock price <= 0!")
             return None
 
-        bear_num = 0
         start = 0
         end = start + BEAR_MARKET_LOOK_BACK_WEEKS
         while end < len(stock_val_list):
@@ -613,14 +596,11 @@ class BearBufUI:
                                        recovery_week_index)
 
                 bear_starts.append(bear_start)
-                bear_num += 1
                 start = bear_start_index + 1
             else:
                 start += 1
 
             end = start + BEAR_MARKET_LOOK_BACK_WEEKS
-
-        return bear_num
 
     def bear_buf_refresh(self, bb: BearBuf):
         """If there are remaining bear buf funds, refresh the bear calming funds"""
@@ -912,8 +892,7 @@ class BearBufUI:
                 weekly_expenses,
                 inflation_annual,
                 interest_annual,
-                bear_calm_weeks,
-                bear_market_num
+                bear_calm_weeks
             ) = self.validate_inputs()
         except ValueError as exc:
             self.log_err(str(exc))
@@ -932,8 +911,7 @@ class BearBufUI:
                              weekly_exp=weekly_expenses,
                              inflation_annual=inflation_annual,
                              interest_annual=interest_annual,
-                             calm_weeks=bear_calm_weeks,
-                             bear_num=bear_market_num)
+                             calm_weeks=bear_calm_weeks)
 
         if not self.auto_run_var.get():
             try:
