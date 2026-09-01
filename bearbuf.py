@@ -54,13 +54,6 @@ def configure_logging():
 
 
 @dataclass
-class WeeklyCalcData:
-    expenses: float
-    stock_price: float
-    bear_active: bool
-    calm_fund: float
-
-@dataclass
 class CalcData:
     port_start: float
     weekly_exp: float
@@ -72,14 +65,20 @@ class CalcData:
 @dataclass
 class BearBuf:
     total: float
-    calm_fund: float
-    bear_remaining: int
+    recovery_week: int
 
 @dataclass
 class BearStart:
     start_date: str
     start_week: int
     recovery_week: int
+
+@dataclass
+class WeeklyCalcData:
+    expenses: float
+    stock_price: float
+    bear_active: bool
+    bb_fund: BearBuf
 
 
 class AnalysisError(Exception):
@@ -459,9 +458,9 @@ class BearBufUI:
     def weekly_expense_stock_calc(self, weekly: WeeklyCalcData):
         """
         Determine how many stocks need to be sold to cover expenses. Utilize
-        the bear calming funds if in a bear market.
+        the bear buf if in a bear market.
 
-        @attention bear_calm_funds are mutated in this method
+        @attention bear buf funds are mutated in this method
 
         @return the number of stocks that need to be sold
         """
@@ -470,20 +469,20 @@ class BearBufUI:
         if not weekly.bear_active:
             return exps / weekly.stock_price
 
-        # if it is a bear market, try and use bear calming $$
-        if weekly.calm_fund >= exps:
+        # if it is a bear market, try and use bear buf $$
+        if weekly.bb_fund.total >= exps:
             # no stocks are needed to pay expenses
-            weekly.calm_fund -= exps
+            weekly.bb_fund.total -= exps
             return 0
 
-        elif weekly.calm_fund > 0:
-            # use the remaining bear calming $$ and sell stocks for the rest
-            exps -= weekly.calm_fund
-            weekly.calm_fund = 0
+        elif weekly.bb_fund.total > 0:
+            # use the remaining bear buf $$ and sell stocks for the rest
+            exps -= weekly.bb_fund.total
+            weekly.bb_fund.total = 0
             return exps / weekly.stock_price
 
         else:
-            # no bear calming $$ left, sell stocks
+            # no bear buf $$ left, sell stocks
             return exps / weekly.stock_price
 
     def append_log_output(self, level: str, msg: str):
@@ -524,7 +523,6 @@ class BearBufUI:
             self.log_msg(f"Expense end: {self.results['expense_end']:.2f}")
             self.log_msg(f"Bear markets: {self.results['bear_num_total']}")
             self.log_msg(f"Bear market dates: {self.results['bear_dates']}")
-            self.log_msg(f"Bear calm amount: {self.results['bear_calm']:.2f}")
             self.log_msg(f"Bear buf start: {self.results['bb_start']:.2f}")
             self.log_msg(f"Bear buf end: {self.results['bb_end']:.2f}\n\n")
 
@@ -574,7 +572,6 @@ class BearBufUI:
     def bear_analyze(self,
                      stock_val_list,
                      stock_date_list,
-                     bear_start_list,
                      bear_starts):
         """
         Analyze the stock prices and detect a bear market start:
@@ -582,8 +579,6 @@ class BearBufUI:
         recovery date (when the stock price matches the previous high
         for the period)
         """
-        # initialize the bear start list to all False
-        bear_start_list[:] = [False] * len(stock_val_list)
 
         if any(value <= 0.0 for value in stock_val_list):
             self.log_err("Stock price <= 0!")
@@ -614,7 +609,6 @@ class BearBufUI:
                                        bear_start_index,
                                        recovery_week_index)
 
-                bear_start_list[bear_start_index] = True
                 bear_starts.append(bear_start)
                 bear_num += 1
                 start = bear_start_index + 1
@@ -625,7 +619,7 @@ class BearBufUI:
 
         return bear_num
 
-    def bear_calm_funds_refresh(self, bb: BearBuf):
+    def bear_buf_refresh(self, bb: BearBuf):
         """If there are remaining bear buf funds, refresh the bear calming funds"""
         if bb.bear_remaining > 0:
             if bb.total > 0.0:
@@ -637,6 +631,53 @@ class BearBufUI:
         else:
             bb.calm_fund = 0
             bb.bear_remaining = 0
+
+    def check_for_bear_start(self, week_index, bb:BearBuf, bear_starts):
+        """
+        Check to see if the historical data from this week matches a bear market start.
+        """
+        for starts in bear_starts:
+            if starts.start_week == week_index:
+                bb.recovery_week = starts.recovery_week
+                return True
+
+        return False
+
+    def check_for_bear_recovery(self, week_index, bb:BearBuf):
+        """
+        Check to see if the historical data from this week shows a recovery from a bear market
+        """
+        if bb.recovery_week is None:
+            return False
+        
+        elif bb.recovery_week == week_index:
+            return True
+        
+        else:
+            return False
+    
+    def bear_buf_refresh(self,
+                          bb:BearBuf, 
+                          stock_val: float, 
+                          remaining_stock_num: float, 
+                          calm_weeks: int, 
+                          expenses: float):
+        
+        """ Refresh the bear buf by selling stocks """
+
+        if calm_weeks == 0:
+            return remaining_stock_num
+
+        # there may be remaining $$ in the previous bear buf
+        amount = (calm_weeks * expenses) - bb.total
+        stocks_needed = amount / stock_val
+
+        # determine the total amount needed based on the current stock price
+        if stocks_needed < remaining_stock_num:
+            bb.total += amount
+            return remaining_stock_num - stocks_needed
+        else:
+            return remaining_stock_num
 
     def analyze_historical_data(
         self,
@@ -656,20 +697,15 @@ class BearBufUI:
             # all calculator lists must match the stock value list length
             list_len = len(self.stock_value)
 
-            # a single bear calm fund == number of weeks * weekly expenses
-            weekly_exp_start = calc.weekly_exp
-            calm_fund_start = calc.calm_weeks * weekly_exp_start
-
             # analyze the data for bear markets
-            bear_start_list = []
             bear_starts = []
             self.bear_analyze(self.stock_value,
                               self.stock_date,
-                              bear_start_list,
                               bear_starts)
 
-            # calculate the total bear buf (bear calm funds * bear num chosen on UI)
-            bear_buf_start = calc.bear_num * calm_fund_start
+             # a single bear buf == number of calm weeks * weekly expenses
+            weekly_exp_start = calc.weekly_exp
+            bear_buf_start = calc.calm_weeks * weekly_exp_start
 
             if bear_buf_start > calc.port_start:
                 msg = (
@@ -691,27 +727,29 @@ class BearBufUI:
             port_val_weekly_list = [weekly_port_val]
             bear_active = False
 
+            # fund the initial bear buf, once a bear start is encountered, the recovery week
+            # is initiliazed
             bear_buf = BearBuf(total=bear_buf_start,
-                               calm_fund=0.0,
-                               bear_remaining=calc.bear_num)
+                               recovery_week=None)
     
             # for every week, determine how many stocks need to be sold for expenses
             for week in range(1, list_len):
-                stock_price = self.stock_value[week]
-
-                # if a bear start is detected, expenses are paid from the bear calm fund
-                # if it is available
-                if bear_start_list[week]:
-                    bear_active = True
-                    self.bear_calm_funds_refresh(bear_buf)
-
-                if not (bear_buf.calm_fund > 0.0):
-                    bear_active = False
+                if not bear_active:
+                    bear_active = self.check_for_bear_start(week, bear_buf, bear_starts)
+                else:
+                    bear_active = self.check_for_bear_recovery(week, bear_buf)
+                    if not bear_active:
+                        # refresh the bear buf by selling stocks if there is $$
+                        stock_num_remaining = self.bear_buf_refresh(bear_buf, 
+                                                self.stock_value[week], 
+                                                stock_num_remaining, 
+                                                calc.calm_weeks,
+                                                weekly_expense_val)
 
                 weekly = WeeklyCalcData(expenses=weekly_expense_val,
-                                        stock_price=stock_price,
+                                        stock_price=self.stock_value[week],
                                         bear_active=bear_active,
-                                        calm_fund=bear_buf.calm_fund)
+                                        bb_fund=bear_buf)
 
                 expense_stock_num = self.weekly_expense_stock_calc(weekly)
 
@@ -719,12 +757,6 @@ class BearBufUI:
                     stock_num_remaining -= expense_stock_num
                 elif stock_num_remaining > 0:
                     stock_num_remaining = 0
-
-                # adjust the bear buf total if bear calm funds were used
-                if bear_buf.calm_fund > weekly.calm_fund:
-                    bear_buf.total -= (bear_buf.calm_fund - weekly.calm_fund)
-
-                bear_buf.calm_fund = weekly.calm_fund
 
                 # add the weekly interest
                 interest = bear_buf.total * interest_weekly
@@ -754,7 +786,6 @@ class BearBufUI:
                 self.results["interest_annual"]  = calc.interest_annual
                 self.results["interest_weekly"]  = interest_weekly
                 self.results["expense_start"]    = weekly_exp_start
-                self.results["bear_calm"]        = calm_fund_start
                 self.results["bear_num_total"]   = calc.bear_num
                 self.results["bb_start"]         = bear_buf_start
                 self.results["bb_end"]           = bear_buf.total
