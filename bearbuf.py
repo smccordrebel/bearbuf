@@ -19,20 +19,8 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 from datetime import datetime
 
-__version__ = "0.1"
+__version__ = "0.2"
 
-# Logging Configuration
-dt = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-log_file_name = f"{dt}_bearbuf_log.txt"
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    handlers=[
-        logging.FileHandler(log_file_name),
-        logging.StreamHandler()
-    ]
-)
 logger = logging.getLogger(__name__)
 
 # ============================================================================
@@ -46,6 +34,24 @@ PLOT_TITLE = "Portfolio"
 CALM_WEEK_MAX = 500
 BEAR_MARKET_LOOK_BACK_WEEKS = 10
 BEAR_MARKET_DROP_THRESHOLD = 0.20
+
+
+def configure_logging():
+    """Set up file + console logging. Called from main(), not at import
+    time, so importing this module elsewhere doesn't create a log file
+    as a side effect."""
+    dt = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    log_file_name = f"{dt}_bearbuf_log.txt"
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        handlers=[
+            logging.FileHandler(log_file_name),
+            logging.StreamHandler()
+        ]
+    )
+
 
 @dataclass
 class WeeklyCalcData:
@@ -74,6 +80,13 @@ class BearStart:
     start_date: str
     start_week: int
     recovery_week: int
+
+
+class AnalysisError(Exception):
+    """Raised when a historical-data analysis run cannot produce a result.
+    The caller decides how to surface this (a dialog, a log line, or
+    aborting an auto-run loop) rather than silently getting back None."""
+
 
 # ============================================================================
 # Bear Buf UI Application
@@ -114,6 +127,55 @@ class BearBufUI:
 
         self.setup_control_tab()
 
+    # ------------------------------------------------------------------
+    # Shared scrollable-frame helper
+    # ------------------------------------------------------------------
+    def _make_scrollable_frame(self, parent, canvas_kwargs=None):
+        """
+        Build a vertically scrollable frame (canvas + scrollbar + inner
+        container) with mousewheel support bound while the pointer is
+        over it. Returns (outer_frame, inner_container) — add your
+        widgets to inner_container.
+        """
+        canvas_kwargs = canvas_kwargs or {}
+        outer = ttk.Frame(parent)
+        outer.rowconfigure(0, weight=1)
+        outer.columnconfigure(0, weight=1)
+
+        canvas = tk.Canvas(outer, highlightthickness=0, **canvas_kwargs)
+        scrollbar = ttk.Scrollbar(outer, orient=tk.VERTICAL, command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.grid(row=0, column=0, sticky="nsew")
+        scrollbar.grid(row=0, column=1, sticky="ns")
+
+        inner = ttk.Frame(canvas)
+        inner.columnconfigure(0, weight=1)
+        window = canvas.create_window((0, 0), window=inner, anchor="nw")
+
+        def _on_inner_configure(_event):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        def _on_canvas_configure(event):
+            canvas.itemconfigure(window, width=event.width)
+
+        inner.bind("<Configure>", _on_inner_configure)
+        canvas.bind("<Configure>", _on_canvas_configure)
+
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+        def _bind_mousewheel(_event):
+            canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+        def _unbind_mousewheel(_event):
+            canvas.unbind_all("<MouseWheel>")
+
+        canvas.bind("<Enter>", _bind_mousewheel)
+        canvas.bind("<Leave>", _unbind_mousewheel)
+
+        return outer, inner
+
     def setup_control_tab(self):
         """Set up the control and monitoring tab."""
         main_container = ttk.Frame(self.control_frame)
@@ -131,50 +193,10 @@ class BearBufUI:
         # ------------------------------------------------------------------
         # Left panel
         # ------------------------------------------------------------------
-        left_panel = ttk.Frame(main_container)
+        left_panel, left_container = self._make_scrollable_frame(
+            main_container, canvas_kwargs={"width": 320}
+        )
         left_panel.grid(row=0, column=0, sticky="ns", padx=5)
-
-        left_panel.rowconfigure(0, weight=1)
-        left_panel.columnconfigure(0, weight=1)
-
-        left_canvas = tk.Canvas(left_panel, highlightthickness=0, width=320)
-        left_scrollbar = ttk.Scrollbar(
-            left_panel,
-            orient=tk.VERTICAL,
-            command=left_canvas.yview
-        )
-        left_canvas.configure(yscrollcommand=left_scrollbar.set)
-
-        left_canvas.grid(row=0, column=0, sticky="nsew")
-        left_scrollbar.grid(row=0, column=1, sticky="ns")
-
-        left_container = ttk.Frame(left_canvas)
-        left_window = left_canvas.create_window(
-            (0, 0),
-            window=left_container,
-            anchor="nw"
-        )
-
-        def _on_left_container_configure(_event):
-            left_canvas.configure(scrollregion=left_canvas.bbox("all"))
-
-        def _on_left_canvas_configure(event):
-            left_canvas.itemconfigure(left_window, width=event.width)
-
-        left_container.bind("<Configure>", _on_left_container_configure)
-        left_canvas.bind("<Configure>", _on_left_canvas_configure)
-
-        def _on_left_mousewheel(event):
-            left_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-
-        def _bind_left_mousewheel(_event):
-            left_canvas.bind_all("<MouseWheel>", _on_left_mousewheel)
-
-        def _unbind_left_mousewheel(_event):
-            left_canvas.unbind_all("<MouseWheel>")
-
-        left_canvas.bind("<Enter>", _bind_left_mousewheel)
-        left_canvas.bind("<Leave>", _unbind_left_mousewheel)
 
         calculator_frame = ttk.LabelFrame(left_container, text="Calculator", padding=10)
         calculator_frame.grid(row=0, column=0, sticky="ew", pady=5)
@@ -227,13 +249,16 @@ class BearBufUI:
         vcmd_int = (self.root.register(self.validate_integer_entry), "%P")
         vcmd_float = (self.root.register(self.validate_float_entry), "%P")
 
+        # NOTE: dollar fields now use the float validator so cents are
+        # accepted (they were previously restricted to whole numbers by
+        # the entry validator despite being parsed as floats).
         self.portfolio_start_entry = ttk.Entry(
             inputs_frame,
             textvariable=self.portfolio_start_val,
             width=14,
             justify=tk.RIGHT,
             validate="key",
-            validatecommand=vcmd_int
+            validatecommand=vcmd_float
         )
         self.weekly_expenses_entry = ttk.Entry(
             inputs_frame,
@@ -241,7 +266,7 @@ class BearBufUI:
             width=14,
             justify=tk.RIGHT,
             validate="key",
-            validatecommand=vcmd_int
+            validatecommand=vcmd_float
         )
         self.annual_inflation_rate_entry = ttk.Entry(
             inputs_frame,
@@ -307,51 +332,8 @@ class BearBufUI:
         # ------------------------------------------------------------------
         # Right panel
         # ------------------------------------------------------------------
-        right_panel = ttk.Frame(main_container)
+        right_panel, graph_container = self._make_scrollable_frame(main_container)
         right_panel.grid(row=0, column=1, sticky="nsew", padx=5)
-
-        right_panel.rowconfigure(0, weight=1)
-        right_panel.columnconfigure(0, weight=1)
-
-        graph_canvas = tk.Canvas(right_panel, highlightthickness=0)
-        graph_scrollbar = ttk.Scrollbar(
-            right_panel,
-            orient=tk.VERTICAL,
-            command=graph_canvas.yview
-        )
-        graph_canvas.configure(yscrollcommand=graph_scrollbar.set)
-
-        graph_canvas.grid(row=0, column=0, sticky="nsew")
-        graph_scrollbar.grid(row=0, column=1, sticky="ns")
-
-        graph_container = ttk.Frame(graph_canvas)
-        graph_container.columnconfigure(0, weight=1)
-        graph_window = graph_canvas.create_window(
-            (0, 0),
-            window=graph_container,
-            anchor="nw"
-        )
-
-        def _on_graph_container_configure(_event):
-            graph_canvas.configure(scrollregion=graph_canvas.bbox("all"))
-
-        def _on_graph_canvas_configure(event):
-            graph_canvas.itemconfigure(graph_window, width=event.width)
-
-        graph_container.bind("<Configure>", _on_graph_container_configure)
-        graph_canvas.bind("<Configure>", _on_graph_canvas_configure)
-
-        def _on_graph_mousewheel(event):
-            graph_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-
-        def _bind_graph_mousewheel(_event):
-            graph_canvas.bind_all("<MouseWheel>", _on_graph_mousewheel)
-
-        def _unbind_graph_mousewheel(_event):
-            graph_canvas.unbind_all("<MouseWheel>")
-
-        graph_canvas.bind("<Enter>", _bind_graph_mousewheel)
-        graph_canvas.bind("<Leave>", _unbind_graph_mousewheel)
 
         graph_frame_1 = ttk.LabelFrame(
             graph_container,
@@ -434,7 +416,6 @@ class BearBufUI:
             raise ValueError(f"{field_name} is required.")
 
         try:
-            # integer or float?
             if int_expected:
                 number = int(value)
             else:
@@ -459,7 +440,7 @@ class BearBufUI:
             (self.weekly_expenses_val.get(), "Weekly Expenses", False, False),
             (self.annual_inflation_rate_val.get(), "Annual Inflation Rate", False, True),
             (self.annual_interest_rate_val.get(), "Annual Interest Rate", False, True),
-            (self.bear_calm_weeks_val.get(), "Bear Calm Weeks",True, True),
+            (self.bear_calm_weeks_val.get(), "Bear Calm Weeks", True, True),
             (self.bear_market_num_val.get(), "Bear Market Num", True, True),
         )
 
@@ -474,8 +455,8 @@ class BearBufUI:
         rate = annual_rate / 100
         weekly_rate = (1 + rate) ** (1 / 52) - 1
         return weekly_rate
-    
-    def weekly_expense_stock_calc(self, weekly:WeeklyCalcData):
+
+    def weekly_expense_stock_calc(self, weekly: WeeklyCalcData):
         """
         Determine how many stocks need to be sold to cover expenses. Utilize
         the bear calming funds if in a bear market.
@@ -494,7 +475,7 @@ class BearBufUI:
             # no stocks are needed to pay expenses
             weekly.calm_fund -= exps
             return 0
-        
+
         elif weekly.calm_fund > 0:
             # use the remaining bear calming $$ and sell stocks for the rest
             exps -= weekly.calm_fund
@@ -549,7 +530,6 @@ class BearBufUI:
 
         except Exception as e:
             self.log_err(f"{type(e).__name__}: {e}")
-                      
 
     def _find_bear_drop_start(self, stock_val_list, start, end):
         """
@@ -560,9 +540,9 @@ class BearBufUI:
         high_val = max(window_values)
         if high_val <= 0:
             raise ValueError("Stock price <= 0!")
-        
+
         high_index = start + window_values.index(high_val)
-        
+
         drop_val = high_val * (1 - BEAR_MARKET_DROP_THRESHOLD)
 
         for index in range(high_index, end):
@@ -573,8 +553,14 @@ class BearBufUI:
 
     def bear_recovery_calc(self, high_index, stock_val_list):
         """
-        Evaluate stock prices during a bear market to see if a recovery has been
-        reached (stock price >= previous high immediately before the bear market)
+        Evaluate stock prices during a bear market to see if a recovery has
+        been reached (stock price >= previous high immediately before the
+        bear market).
+
+        @return the index of the recovery week, or None if no recovery is
+        found before the end of the data. (Previously this returned 0 as
+        the "not found" sentinel; None is used instead so it can't be
+        confused with a legitimate index if the search range ever changes.)
         """
         stock_val_high = stock_val_list[high_index]
 
@@ -582,21 +568,19 @@ class BearBufUI:
             if stock_val_list[week] >= stock_val_high:
                 # recovery has been reached
                 return week
-            
-        return None
-            
 
-    def bear_analyze(self, 
-                     stock_val_list, 
-                     stock_date_list, 
-                     bear_start_list, 
+        return None
+
+    def bear_analyze(self,
+                     stock_val_list,
+                     stock_date_list,
+                     bear_start_list,
                      bear_starts):
         """
-        Analyze the stock prices and detect a bear market start: 
-        20% drop in price from recent 10 week highs. Calculate the 
+        Analyze the stock prices and detect a bear market start:
+        20% drop in price from recent 10 week highs. Calculate the
         recovery date (when the stock price matches the previous high
         for the period)
-
         """
         # initialize the bear start list to all False
         bear_start_list[:] = [False] * len(stock_val_list)
@@ -614,7 +598,7 @@ class BearBufUI:
             except ValueError as exc:
                 self.log_err(str(exc))
                 return None
-            
+
             if bear_start_index is not None:
 
                 if bear_start_index <= start:
@@ -641,28 +625,7 @@ class BearBufUI:
 
         return bear_num
 
-    def stock_lists_get(self):
-        """Return weekly index and stock-value lists for analysis."""
-        if len(self.stock_date) != len(self.stock_value):
-            self.log_err("Stock date and stock value lists are not the same length")
-            return [], []
-
-        # create lists of the weekly dates and weekly stock prices
-        # that were read from the input file
-        week_list = list(range(len(self.stock_date)))
-        try:
-            stock_val_list = [float(val) for val in self.stock_value]
-        except (TypeError, ValueError):
-            self.log_err("Historical stock values must be valid numbers.")
-            return [], []
-
-        if any(value <= 0 for value in stock_val_list):
-            self.log_err("Historical stock values must be greater than 0.")
-            return [], []
-
-        return week_list, stock_val_list
-
-    def bear_calm_funds_refresh(self, bb:BearBuf):
+    def bear_calm_funds_refresh(self, bb: BearBuf):
         """If there are remaining bear buf funds, refresh the bear calming funds"""
         if bb.bear_remaining > 0:
             if bb.total > 0.0:
@@ -679,11 +642,15 @@ class BearBufUI:
         self,
         calc: CalcData,
         log_results=True
-    ) -> float:
+    ):
         """
         Calculate a portfolio value over time, by evaluating every week and
-        subtracting expenses either through selling stocks or using bear calming
-        funds during a bear market
+        subtracting expenses either through selling stocks or using bear
+        calming funds during a bear market.
+
+        @raise AnalysisError if the run cannot produce a result (e.g. the
+        bear buf can't be funded, or an unexpected error occurs). Callers
+        must handle this rather than assume a numeric return value.
         """
         try:
             # all calculator lists must match the stock value list length
@@ -696,19 +663,21 @@ class BearBufUI:
             # analyze the data for bear markets
             bear_start_list = []
             bear_starts = []
-            self.bear_analyze(self.stock_value, 
-                              self.stock_date, 
-                              bear_start_list, 
+            self.bear_analyze(self.stock_value,
+                              self.stock_date,
+                              bear_start_list,
                               bear_starts)
 
             # calculate the total bear buf (bear calm funds * bear num chosen on UI)
             bear_buf_start = calc.bear_num * calm_fund_start
 
             if bear_buf_start > calc.port_start:
-                msg = "Not enough $$ in portfolio to fund the bear buf."
-                msg += f" Funds needed: calm weeks {calc.calm_weeks}, total {bear_buf_start}"
+                msg = (
+                    "Not enough $$ in portfolio to fund the bear buf. "
+                    f"Funds needed: calm weeks {calc.calm_weeks}, total {bear_buf_start}"
+                )
                 self.log_err(msg)
-                return None
+                raise AnalysisError(msg)
 
             # the bear buf is funded through the portfolio, deduct that money
             # before calculating the starting stock number
@@ -743,7 +712,7 @@ class BearBufUI:
                                         stock_price=stock_price,
                                         bear_active=bear_active,
                                         calm_fund=bear_buf.calm_fund)
-                
+
                 expense_stock_num = self.weekly_expense_stock_calc(weekly)
 
                 if expense_stock_num <= stock_num_remaining:
@@ -769,14 +738,15 @@ class BearBufUI:
                 weekly_expense_val += (weekly_expense_val * inflation_weekly)
 
             if len(port_val_weekly_list) != list_len:
-                msg = "Lists must be the same length: "
-                msg += f"port val list length: {len(port_val_weekly_list)}, "
-                msg += f"stock list length: {list_len}"
+                msg = (
+                    "Lists must be the same length: "
+                    f"port val list length: {len(port_val_weekly_list)}, "
+                    f"stock list length: {list_len}"
+                )
                 self.log_err(msg)
-                return None
+                raise AnalysisError(msg)
 
             if log_results:
-                # log the results of the analysis
                 self.results["date_range"]       = f"{self.stock_date[0]} to {self.stock_date[-1]}"
                 self.results["port_total_start"] = calc.port_start
                 self.results["inflation_annual"] = calc.inflation_annual
@@ -794,18 +764,21 @@ class BearBufUI:
                 self.results["bear_dates"] = [
                     item.start_date for item in (bear_starts or []) if hasattr(item, "start_date")
                 ]
-                  
+
                 self.log_results()
 
                 # display the data on the plot
                 x_label = f"Weeks from {self.stock_date[0]} to {self.stock_date[-1]}"
                 self.display_data(x_label, range(0, len(port_val_weekly_list)), port_val_weekly_list)
 
-            # return the final portfolio ending value
             return port_val_weekly_list[-1]
 
+        except AnalysisError:
+            raise
         except Exception as e:
-            self.log_err(f"{type(e).__name__}: {e}")
+            msg = f"{type(e).__name__}: {e}"
+            self.log_err(msg)
+            raise AnalysisError(msg) from e
 
     def display_data(self, x_label, week_list, port_val_weekly_list):
         """Display the portfolio analysis data on the graph"""
@@ -836,14 +809,14 @@ class BearBufUI:
         self.stock_value.clear()
 
     def historical_data_read(self):
-        """Read the historical data"""
+        """Read the historical data. Raises on failure; does not
+        swallow exceptions itself (see on_calculator_run)."""
+        self.history_clear()
+
+        if not self.input_file:
+            raise ValueError("No input file chosen")
+
         try:
-            self.history_clear()
-
-            if not self.input_file:
-                self.log_err("No input file chosen")
-                return
-
             with open(self.input_file, newline="", encoding="utf-8") as f:
                 reader = csv.reader(f)
                 for row in reader:
@@ -868,10 +841,10 @@ class BearBufUI:
         except Exception as exc:
             self.history_clear()
             logger.error("Historical data read failed for %s: %s", self.input_file, exc)
-            self.log_err((
+            raise ValueError(
                 f"Error when reading historical data from {self.input_file}. "
                 "Verify the file exists and contains valid date/value rows."
-            ))
+            ) from exc
 
     def on_file_button(self):
         """Choose the input that holds dates and stock prices"""
@@ -889,7 +862,6 @@ class BearBufUI:
         )
         return file_path
 
-
     def on_calculator_run(self):
         """Run the calculator and display results."""
         try:
@@ -905,7 +877,11 @@ class BearBufUI:
             self.log_err(str(exc))
             return
 
-        self.historical_data_read()
+        try:
+            self.historical_data_read()
+        except ValueError as exc:
+            self.log_err(str(exc))
+            return
 
         if not self.stock_date or not self.stock_value:
             return
@@ -917,51 +893,64 @@ class BearBufUI:
                              calm_weeks=bear_calm_weeks,
                              bear_num=bear_market_num)
 
-
         if not self.auto_run_var.get():
-            # run a single pass and display the results on the plot
-            port_end = self.analyze_historical_data(calc_data, log_results=True)
-            if port_end is None:
+            try:
+                self.analyze_historical_data(calc_data, log_results=True)
+            except AnalysisError:
+                # already logged inside analyze_historical_data
                 return
-
         else:
-            # evaluate the portfolio with different bear calming weeks to 
-            # determine the largest final portfolio
-            calc_data.calm_weeks = 0
-            port_end_previous = 0
-            port_end = 1
+            self._run_auto_calibration(calc_data)
 
-            while (calc_data.calm_weeks <= CALM_WEEK_MAX):
+    def _run_auto_calibration(self, calc_data: CalcData):
+        """
+        Evaluate the portfolio with increasing bear-calming weeks to find
+        the number of weeks that produces the largest final portfolio
+        value. Extracted from on_calculator_run for readability and so
+        the AnalysisError handling lives in one place.
+        """
+        calc_data.calm_weeks = 0
+        port_end_previous = 0
 
+        while calc_data.calm_weeks <= CALM_WEEK_MAX:
+            try:
                 port_end = self.analyze_historical_data(calc_data, log_results=False)
-                if port_end is None:
-                    return
+            except AnalysisError:
+                # can't evaluate this many calm weeks (e.g. bear buf too
+                # expensive) - stop calibrating and fall back to the last
+                # good value
+                if calc_data.calm_weeks > 0:
+                    calc_data.calm_weeks -= 1
+                break
 
-                if port_end >= port_end_previous:
-                    port_end_previous = port_end
-                    calc_data.calm_weeks += 1
-                else:
-                    # use the previous # of calm weeks, it resulted in a higher ending portfolio
-                    if calc_data.calm_weeks > 0:
-                        calc_data.calm_weeks -= 1
-
-                    break
-
-            if calc_data.calm_weeks > CALM_WEEK_MAX:
-                msg = "Auto run stopped before finding optimal calming weeks."
-                self.log_msg(msg)
+            if port_end >= port_end_previous:
+                port_end_previous = port_end
+                calc_data.calm_weeks += 1
             else:
-                port_end = self.analyze_historical_data(calc_data, log_results=True)
-                if port_end is None:
-                    return
-                
-                msg = f"Maximum portfolio of {port_end:.2f}"
-                msg += f" found when bear calming weeks are {calc_data.calm_weeks}"
-                msg += f" total weeks {calc_data.calm_weeks * calc_data.bear_num}"
-                self.log_msg(msg)
+                if calc_data.calm_weeks > 0:
+                    calc_data.calm_weeks -= 1
+                break
+        else:
+            # loop finished without breaking - hit CALM_WEEK_MAX
+            self.log_msg("Auto run stopped before finding optimal calming weeks.")
+            return
+
+        try:
+            port_end = self.analyze_historical_data(calc_data, log_results=True)
+        except AnalysisError:
+            return
+
+        msg = (
+            f"Maximum portfolio of {port_end:.2f} found when bear calming "
+            f"weeks are {calc_data.calm_weeks} total weeks "
+            f"{calc_data.calm_weeks * calc_data.bear_num}"
+        )
+        self.log_msg(msg)
+
 
 def main():
     """Main entry point for the application."""
+    configure_logging()
     root = tk.Tk()
     BearBufUI(root)
 
