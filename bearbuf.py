@@ -70,6 +70,7 @@ class BearBuf:
 @dataclass
 class BearStart:
     start_date: str
+    recovery_date: str
     start_week: int
     recovery_week: int
 
@@ -297,6 +298,7 @@ class BearBufUI:
             width=14,
             justify=tk.RIGHT,
             validate="key",
+            state=tk.DISABLED,
             validatecommand=vcmd_int
         )
 
@@ -521,8 +523,8 @@ class BearBufUI:
             self.log_msg(f"Weekly interest rate: {self.results['interest_weekly']:.8f}")
             self.log_msg(f"Expense start: {self.results['expense_start']:.2f}")
             self.log_msg(f"Expense end: {self.results['expense_end']:.2f}")
-            self.log_msg(f"Bear markets: {self.results['bear_num_total']}")
             self.log_msg(f"Bear market dates: {self.results['bear_dates']}")
+            self.log_msg(f"Bear recovery dates: {self.results['bear_recovery_dates']}")
             self.log_msg(f"Bear buf start: {self.results['bb_start']:.2f}")
             self.log_msg(f"Bear buf end: {self.results['bb_end']:.2f}\n\n")
 
@@ -549,7 +551,7 @@ class BearBufUI:
 
         return None, None
 
-    def bear_recovery_calc(self, high_index, stock_val_list):
+    def bear_recovery_calc(self, bear_start_index, high_index, stock_val_list):
         """
         Evaluate stock prices during a bear market to see if a recovery has
         been reached (stock price >= previous high immediately before the
@@ -562,7 +564,7 @@ class BearBufUI:
         """
         stock_val_high = stock_val_list[high_index]
 
-        for week in range(high_index + 1, len(stock_val_list)):
+        for week in range(bear_start_index + 1, len(stock_val_list)):
             if stock_val_list[week] >= stock_val_high:
                 # recovery has been reached
                 return week
@@ -597,9 +599,16 @@ class BearBufUI:
             if bear_start_index is not None:
 
                 # find the week that the stock value recovers
-                recovery_week_index = self.bear_recovery_calc(high_index, stock_val_list)
+                recovery_week_index = self.bear_recovery_calc(bear_start_index, high_index, stock_val_list)
+                start_date = stock_date_list[bear_start_index]
 
-                bear_start = BearStart(stock_date_list[bear_start_index],
+                if recovery_week_index is None:
+                    recovery_date = "No recovery"
+                else:
+                    recovery_date = stock_date_list[recovery_week_index]
+
+                bear_start = BearStart(start_date,
+                                       recovery_date,
                                        bear_start_index,
                                        recovery_week_index)
 
@@ -733,11 +742,12 @@ class BearBufUI:
                 if not bear_active:
                     bear_active = self.check_for_bear_start(week, bear_buf, bear_starts)
                 else:
-                    bear_active = self.check_for_bear_recovery(week, bear_buf)
+                    if self.check_for_bear_recovery(week, bear_buf):
 
-                    # we have recovered, refresh the bear buf by selling stocks if there
-                    # is enough money in the portfolio
-                    if not bear_active:
+                        bear_active = False
+
+                        # we have recovered, refresh the bear buf by selling stocks if there
+                        # is enough money in the portfolio
                         stock_remaining = self.bear_buf_refresh(bear_buf, 
                                                 stock_val,
                                                 stock_remaining, 
@@ -784,7 +794,6 @@ class BearBufUI:
                 self.results["interest_annual"]  = calc.interest_annual
                 self.results["interest_weekly"]  = interest_weekly
                 self.results["expense_start"]    = weekly_exp_start
-                self.results["bear_num_total"]   = calc.bear_num
                 self.results["bb_start"]         = bear_buf_start
                 self.results["bb_end"]           = bear_buf.total
                 self.results["expense_end"]      = weekly_expense_val
@@ -792,6 +801,10 @@ class BearBufUI:
 
                 self.results["bear_dates"] = [
                     item.start_date for item in (bear_starts or []) if hasattr(item, "start_date")
+                ]
+
+                self.results["bear_recovery_dates"] = [
+                    item.recovery_date for item in (bear_starts or []) if hasattr(item, "recovery_date")
                 ]
 
                 self.log_results()
@@ -971,8 +984,7 @@ class BearBufUI:
 
         msg = (
             f"Maximum portfolio of {port_end:.2f} found when bear calming "
-            f"weeks are {calc_data.calm_weeks} total weeks "
-            f"{calc_data.calm_weeks * calc_data.bear_num}"
+            f"weeks are {calc_data.calm_weeks}"
         )
         self.log_msg(msg)
 
