@@ -532,7 +532,7 @@ class BearBufUI:
     def _find_bear_drop_start(self, stock_val_list, start, end):
         """
         Return the index where a bear market starts in the current analysis
-        window, or None if no start is found.
+        window, along with the index of the high value, or None if no start is found.
         """
         window_values = stock_val_list[start:end]
         high_val = max(window_values)
@@ -543,11 +543,11 @@ class BearBufUI:
 
         drop_val = high_val * (1 - BEAR_MARKET_DROP_THRESHOLD)
 
-        for index in range(high_index, end):
-            if stock_val_list[index] <= drop_val:
-                return index
+        for bear_index in range(high_index, end):
+            if stock_val_list[bear_index] <= drop_val:
+                return bear_index, high_index
 
-        return None
+        return None, None
 
     def bear_recovery_calc(self, high_index, stock_val_list):
         """
@@ -587,22 +587,16 @@ class BearBufUI:
         bear_num = 0
         start = 0
         end = start + BEAR_MARKET_LOOK_BACK_WEEKS
-        while end <= len(stock_val_list):
+        while end < len(stock_val_list):
             try:
-                bear_start_index = self._find_bear_drop_start(stock_val_list, start, end)
+                bear_start_index, high_index = self._find_bear_drop_start(stock_val_list, start, end)
             except ValueError as exc:
                 self.log_err(str(exc))
                 return None
 
             if bear_start_index is not None:
 
-                if bear_start_index <= start:
-                    msg = "Invalid index in bear start calculations"
-                    self.log_err(msg)
-                    return None
-
                 # find the week that the stock value recovers
-                high_index = bear_start_index - 1
                 recovery_week_index = self.bear_recovery_calc(high_index, stock_val_list)
 
                 bear_start = BearStart(stock_date_list[bear_start_index],
@@ -717,7 +711,7 @@ class BearBufUI:
 
             # the bear buf is funded through the portfolio, deduct that money
             # before calculating the starting stock number
-            stock_num_remaining = (calc.port_start - bear_buf_start) / self.stock_value[0]
+            stock_remaining = (calc.port_start - bear_buf_start) / self.stock_value[0]
 
             # initialize weekly processing variables
             weekly_expense_val = calc.weekly_exp
@@ -727,43 +721,47 @@ class BearBufUI:
             port_val_weekly_list = [weekly_port_val]
             bear_active = False
 
-            # fund the initial bear buf, once a bear start is encountered, the recovery week
+            # the initial bear buf, once a bear start is encountered, the recovery week
             # is initiliazed
             bear_buf = BearBuf(total=bear_buf_start,
                                recovery_week=None)
     
             # for every week, determine how many stocks need to be sold for expenses
             for week in range(1, list_len):
+                stock_val = self.stock_value[week]
+
                 if not bear_active:
                     bear_active = self.check_for_bear_start(week, bear_buf, bear_starts)
                 else:
                     bear_active = self.check_for_bear_recovery(week, bear_buf)
+
+                    # we have recovered, refresh the bear buf by selling stocks if there
+                    # is enough money in the portfolio
                     if not bear_active:
-                        # refresh the bear buf by selling stocks if there is $$
-                        stock_num_remaining = self.bear_buf_refresh(bear_buf, 
-                                                self.stock_value[week], 
-                                                stock_num_remaining, 
+                        stock_remaining = self.bear_buf_refresh(bear_buf, 
+                                                stock_val,
+                                                stock_remaining, 
                                                 calc.calm_weeks,
                                                 weekly_expense_val)
 
                 weekly = WeeklyCalcData(expenses=weekly_expense_val,
-                                        stock_price=self.stock_value[week],
+                                        stock_price=stock_val,
                                         bear_active=bear_active,
                                         bb_fund=bear_buf)
 
                 expense_stock_num = self.weekly_expense_stock_calc(weekly)
 
-                if expense_stock_num <= stock_num_remaining:
-                    stock_num_remaining -= expense_stock_num
-                elif stock_num_remaining > 0:
-                    stock_num_remaining = 0
+                if expense_stock_num <= stock_remaining:
+                    stock_remaining -= expense_stock_num
+                elif stock_remaining > 0:
+                    stock_remaining = 0
 
                 # add the weekly interest
                 interest = bear_buf.total * interest_weekly
                 bear_buf.total += interest
 
                 # add the weekly portfolio value for this week
-                weekly_port_val = (stock_num_remaining * self.stock_value[week]) + bear_buf.total
+                weekly_port_val = (stock_remaining * stock_val) + bear_buf.total
                 port_val_weekly_list.append(weekly_port_val)
 
                 # add inflation to weekly expenses
