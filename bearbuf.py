@@ -974,6 +974,7 @@ class BearBufUI:
                 break
         else:
             # loop finished without breaking - hit CALM_WEEK_MAX
+            self.bear_calm_weeks_val.set(0)
             self.log_msg("Auto run stopped before finding optimal calming weeks.")
             return
 
@@ -982,6 +983,7 @@ class BearBufUI:
         except AnalysisError:
             return
 
+        self.bear_calm_weeks_val.set(calc_data.calm_weeks)
         msg = (
             f"Maximum portfolio of {port_end:.2f} found when bear calming "
             f"weeks are {calc_data.calm_weeks}"
