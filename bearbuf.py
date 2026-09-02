@@ -548,6 +548,10 @@ class BearBufUI:
         """
         stock_val_high = stock_val_list[high_index]
 
+        # recovery happens when the stock price reaches within 5% of the high
+        # price before the crash
+        stock_val_high -= (stock_val_high * 0.05)
+
         for week in range(bear_start_index + 1, len(stock_val_list)):
             if stock_val_list[week] >= stock_val_high:
                 # recovery has been reached
