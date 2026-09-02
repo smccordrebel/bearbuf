@@ -606,19 +606,6 @@ class BearBufUI:
 
             end = start + BEAR_MARKET_LOOK_BACK_WEEKS
 
-    def bear_buf_refresh(self, bb: BearBuf):
-        """If there are remaining bear buf funds, refresh the bear calming funds"""
-        if bb.bear_remaining > 0:
-            if bb.total > 0.0:
-                bb.calm_fund = bb.total / bb.bear_remaining
-            else:
-                bb.calm_fund = 0.0
-
-            bb.bear_remaining -= 1
-        else:
-            bb.calm_fund = 0
-            bb.bear_remaining = 0
-
     def check_for_bear_start(self, week_index, bb:BearBuf, bear_starts):
         """
         Check to see if the historical data from this week matches a bear market start.
@@ -659,8 +646,8 @@ class BearBufUI:
         amount = (calm_weeks * expenses) - bb.total
         stocks_needed = amount / stock_val
 
-        # determine the total amount needed based on the current stock price
-        if stocks_needed < remaining_stock_num:
+        # only fund the bear buf if it doesn't deplete the remaining stocks
+        if stocks_needed < (remaining_stock_num / 5.0):
             bb.total += amount
             return remaining_stock_num - stocks_needed
         else:
@@ -745,22 +732,24 @@ class BearBufUI:
 
                 expense_stock_num = self.weekly_expense_stock_calc(weekly)
 
-                if expense_stock_num <= stock_remaining:
-                    # we have enough stock to pay for expenses
+                if stock_remaining >= expense_stock_num:
+                    # pay for expenses with stock
                     stock_remaining -= expense_stock_num
-                else:
-                    # we don't have enough stocks, dip into the bear buf if there
-                    # is any money left
+                    expense_stock_num = 0.0
+
+                elif stock_remaining > 0.0:
+                    # use remaining stocks to pay for portion of expenses
                     expense_stock_num -= stock_remaining
-                    stock_remaining = 0
+                    stock_remaining = 0.0
 
-                    if bear_buf.total > 0.0:
-                        needed = weekly_expense_val - (expense_stock_num * stock_val)
+                if (expense_stock_num > 0.0) and (bear_buf.total > 0.0):
+                    # not enough stock to pay for expenses, try the bear buf
+                    needed = expense_stock_num * stock_val
 
-                        if bear_buf.total > needed:
-                            bear_buf.total -= needed
-                        else:
-                            bear_buf.total = 0.0
+                    if bear_buf.total >= needed:
+                        bear_buf.total -= needed
+                    else:
+                        bear_buf.total = 0.0
 
                 # add the weekly interest
                 interest = bear_buf.total * interest_weekly
