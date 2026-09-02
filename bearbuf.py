@@ -742,9 +742,21 @@ class BearBufUI:
                 expense_stock_num = self.weekly_expense_stock_calc(weekly)
 
                 if expense_stock_num <= stock_remaining:
+                    # we have enough stock to pay for expenses
                     stock_remaining -= expense_stock_num
-                elif stock_remaining > 0:
+                else:
+                    # we don't have enough stocks, dip into the bear buf if there
+                    # is any money left
+                    expense_stock_num -= stock_remaining
                     stock_remaining = 0
+
+                    if bear_buf.total > 0.0:
+                        needed = weekly_expense_val - (expense_stock_num * stock_val)
+
+                        if bear_buf.total > needed:
+                            bear_buf.total -= needed
+                        else:
+                            bear_buf.total = 0.0
 
                 # add the weekly interest
                 interest = bear_buf.total * interest_weekly
