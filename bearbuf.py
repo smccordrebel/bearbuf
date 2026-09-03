@@ -33,7 +33,10 @@ PLOT_Y_LABEL = "Portfolio Value"
 PLOT_TITLE = "Portfolio"
 CALM_WEEK_MAX = 500
 BEAR_MARKET_LOOK_BACK_WEEKS = 10
-BEAR_MARKET_DROP_THRESHOLD = 0.20
+BEAR_MARKET_PERCENT = 0.20
+BEAR_RECOVERY_PERCENT = 0.05
+YEARLY_WEEKS = 52
+STOCKS_REMAINING_THRESHOLD = 2.0
 
 
 def configure_logging():
@@ -231,15 +234,15 @@ class BearBufUI:
         ttk.Label(inputs_frame, text="Annual Interest Rate %").grid(
             row=3, column=0, sticky="w", padx=(0, 10), pady=4
         )
-        ttk.Label(inputs_frame, text="Bear Calm Weeks").grid(
+        ttk.Label(inputs_frame, text="Bear Buf Weeks").grid(
             row=4, column=0, sticky="w", padx=(0, 10), pady=4
         )
 
-        self.portfolio_start_val = tk.StringVar(value="2000000")
+        self.portfolio_start_val = tk.StringVar(value="3000000")
         self.weekly_expenses_val = tk.StringVar(value="2000")
         self.annual_inflation_rate_val = tk.StringVar(value="3")
         self.annual_interest_rate_val = tk.StringVar(value="1")
-        self.bear_calm_weeks_val = tk.StringVar(value="26")
+        self.bear_buf_weeks_val = tk.StringVar(value="26")
 
         vcmd_int = (self.root.register(self.validate_integer_entry), "%P")
         vcmd_float = (self.root.register(self.validate_float_entry), "%P")
@@ -279,9 +282,9 @@ class BearBufUI:
             validate="key",
             validatecommand=vcmd_float
         )
-        self.bear_calm_weeks_entry = ttk.Entry(
+        self.bear_buf_weeks_entry = ttk.Entry(
             inputs_frame,
-            textvariable=self.bear_calm_weeks_val,
+            textvariable=self.bear_buf_weeks_val,
             width=14,
             justify=tk.RIGHT,
             validate="key",
@@ -292,7 +295,7 @@ class BearBufUI:
         self.weekly_expenses_entry.grid(row=1, column=1, sticky="ew", pady=4)
         self.annual_inflation_rate_entry.grid(row=2, column=1, sticky="ew", pady=4)
         self.annual_interest_rate_entry.grid(row=3, column=1, sticky="ew", pady=4)
-        self.bear_calm_weeks_entry.grid(row=4, column=1, sticky="ew", pady=4)
+        self.bear_buf_weeks_entry.grid(row=4, column=1, sticky="ew", pady=4)
 
         calculator_run_frame = ttk.Frame(calculator_frame)
         calculator_run_frame.grid(row=2, column=0, sticky="ew", pady=4)
@@ -426,7 +429,7 @@ class BearBufUI:
             (self.weekly_expenses_val.get(), "Weekly Expenses", False, False),
             (self.annual_inflation_rate_val.get(), "Annual Inflation Rate", False, True),
             (self.annual_interest_rate_val.get(), "Annual Interest Rate", False, True),
-            (self.bear_calm_weeks_val.get(), "Bear Calm Weeks", True, True),
+            (self.bear_buf_weeks_val.get(), "Bear Calm Weeks", True, True),
         )
 
         parsed_values = [
@@ -527,7 +530,7 @@ class BearBufUI:
 
         high_index = start + window_values.index(high_val)
 
-        drop_val = high_val * (1 - BEAR_MARKET_DROP_THRESHOLD)
+        drop_val = high_val * (1 - BEAR_MARKET_PERCENT)
 
         for bear_index in range(high_index, end):
             if stock_val_list[bear_index] <= drop_val:
@@ -550,7 +553,7 @@ class BearBufUI:
 
         # recovery happens when the stock price reaches within 5% of the high
         # price before the crash
-        stock_val_high -= (stock_val_high * 0.05)
+        stock_val_high -= (stock_val_high * BEAR_RECOVERY_PERCENT)
 
         for week in range(bear_start_index + 1, len(stock_val_list)):
             if stock_val_list[week] >= stock_val_high:
@@ -647,7 +650,7 @@ class BearBufUI:
         stocks_needed = amount / stock_val
 
         # only fund the bear buf if it doesn't deplete the remaining stocks
-        if stocks_needed < (remaining_stock_num / 5.0):
+        if stocks_needed < (remaining_stock_num / STOCKS_REMAINING_THRESHOLD):
             bb.total += amount
             return remaining_stock_num - stocks_needed
         else:
@@ -700,6 +703,8 @@ class BearBufUI:
             interest_weekly = self.weekly_rate_from_annual(calc.interest_annual)
             port_val_weekly_list = [weekly_port_val]
             bear_active = False
+            yearly_num = 0
+            yearly_top_up = False
 
             # the initial bear buf, once a bear start is encountered, the recovery week
             # is initiliazed
@@ -708,6 +713,13 @@ class BearBufUI:
     
             # for every week, determine how many stocks need to be sold for expenses
             for week in range(1, list_len):
+                if yearly_num == YEARLY_WEEKS:
+                    yearly_top_up = True
+                    yearly_num = 0
+                else:
+                    yearly_top_up = False
+                    yearly_num += 1
+
                 stock_val = self.stock_value[week]
 
                 if not bear_active:
@@ -717,8 +729,7 @@ class BearBufUI:
 
                         bear_active = False
 
-                        # we have recovered, refresh the bear buf by selling stocks if there
-                        # is enough money in the portfolio
+                        # we have recovered, refresh the bear buf
                         stock_remaining = self.bear_buf_refresh(bear_buf, 
                                                 stock_val,
                                                 stock_remaining, 
@@ -761,6 +772,15 @@ class BearBufUI:
 
                 # add inflation to weekly expenses
                 weekly_expense_val += (weekly_expense_val * inflation_weekly)
+
+                if yearly_top_up and (not bear_active) and (stock_remaining > 0.0):
+                    # top up the bear buf if not in a bear market
+                    stock_remaining = self.bear_buf_refresh(bear_buf, 
+                                            stock_val,
+                                            stock_remaining, 
+                                            calc.calm_weeks,
+                                            weekly_expense_val)
+
 
             if len(port_val_weekly_list) != list_len:
                 msg = (
@@ -897,7 +917,7 @@ class BearBufUI:
                 weekly_expenses,
                 inflation_annual,
                 interest_annual,
-                bear_calm_weeks
+                bear_buf_weeks
             ) = self.validate_inputs()
         except ValueError as exc:
             self.log_err(str(exc))
@@ -916,7 +936,7 @@ class BearBufUI:
                              weekly_exp=weekly_expenses,
                              inflation_annual=inflation_annual,
                              interest_annual=interest_annual,
-                             calm_weeks=bear_calm_weeks)
+                             calm_weeks=bear_buf_weeks)
 
         if not self.auto_run_var.get():
             try:
@@ -957,7 +977,7 @@ class BearBufUI:
                 break
         else:
             # loop finished without breaking - hit CALM_WEEK_MAX
-            self.bear_calm_weeks_val.set(0)
+            self.bear_buf_weeks_val.set(0)
             self.log_msg("Auto run stopped before finding optimal calming weeks.")
             return
 
@@ -966,7 +986,7 @@ class BearBufUI:
         except AnalysisError:
             return
 
-        self.bear_calm_weeks_val.set(calc_data.calm_weeks)
+        self.bear_buf_weeks_val.set(calc_data.calm_weeks)
         msg = (
             f"Maximum portfolio of {port_end:.2f} found when bear calming "
             f"weeks are {calc_data.calm_weeks}"
